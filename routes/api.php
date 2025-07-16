@@ -3,6 +3,9 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\OrderController;
+use App\Http\Controllers\ProposalController;
+use App\Http\Controllers\ServiceController;
 
 /*
 |--------------------------------------------------------------------------
@@ -25,6 +28,41 @@ Route::middleware("auth:sanctum")->group(function () {
     Route::get("/me", [AuthController::class, "me"]);
     Route::put("/profile", [AuthController::class, "updateProfile"]);
     Route::put("/profile-type", [AuthController::class, "updateProfileType"]);
+
+    // Rotas de Pedidos
+    Route::prefix('orders')->group(function () {
+        Route::get('/', [OrderController::class, 'index']);
+        Route::post('/', [OrderController::class, 'store']);
+        Route::get('/available', [OrderController::class, 'available']);
+        Route::get('/recent', [OrderController::class, 'recent']);
+        Route::get('/stats', [OrderController::class, 'stats']);
+        Route::get('/{id}', [OrderController::class, 'show']);
+        Route::put('/{id}', [OrderController::class, 'update']);
+        Route::delete('/{id}', [OrderController::class, 'destroy']);
+        Route::post('/{id}/start-auction', [OrderController::class, 'startAuction']);
+    });
+
+    // Rotas de Propostas
+    Route::prefix('proposals')->group(function () {
+        Route::get('/', [ProposalController::class, 'index']);
+        Route::post('/', [ProposalController::class, 'store']);
+        Route::get('/{id}', [ProposalController::class, 'show']);
+        Route::put('/{id}', [ProposalController::class, 'update']);
+        Route::post('/{id}/accept', [ProposalController::class, 'accept']);
+        Route::post('/{id}/reject', [ProposalController::class, 'reject']);
+        Route::post('/{id}/withdraw', [ProposalController::class, 'withdraw']);
+    });
+
+    // Rotas de Serviços
+    Route::prefix('services')->group(function () {
+        Route::get('/', [ServiceController::class, 'index']);
+        Route::post('/', [ServiceController::class, 'store']);
+        Route::get('/available', [ServiceController::class, 'available']);
+        Route::get('/search-providers', [ServiceController::class, 'searchProviders']);
+        Route::get('/{id}', [ServiceController::class, 'show']);
+        Route::put('/{id}', [ServiceController::class, 'update']);
+        Route::delete('/{id}', [ServiceController::class, 'destroy']);
+    });
 });
 
 Route::middleware("auth:sanctum")->get("/user", function (Request $request) {

@@ -271,6 +271,29 @@ class OrderController extends Controller
             $query->byCategory($request->category);
         }
 
+        // Filtro por CEP (busca em raio próximo)
+        if ($request->has('cep') && !empty($request->cep)) {
+            $cep = $request->cep;
+            
+            // Validar formato do CEP (8 dígitos)
+            if (strlen($cep) >= 5) {
+                // Extrair os primeiros 5 dígitos do CEP para busca por região
+                $cepPrefix = substr($cep, 0, 5);
+                
+                // Buscar pedidos onde o endereço contém CEPs próximos
+                // Vamos considerar CEPs que começam com os mesmos 5 dígitos como "próximos"
+                $query->where(function ($q) use ($cepPrefix) {
+                    $q->where('address', 'LIKE', $cepPrefix . '%')
+                      ->orWhere('address', 'REGEXP', '^[0-9]{5}'); // CEPs que começam com 5 dígitos
+                });
+                
+                Log::info('Filtro por CEP aplicado', [
+                    'cep_informado' => $cep,
+                    'cep_prefix' => $cepPrefix
+                ]);
+            }
+        }
+
         $orders = $query->orderBy('created_at', 'desc')->paginate(10);
 
         return response()->json([

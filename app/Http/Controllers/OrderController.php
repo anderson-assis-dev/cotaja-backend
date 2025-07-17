@@ -261,10 +261,7 @@ class OrderController extends Controller
         }
 
         $query = Order::with(['client', 'proposals.provider', 'attachments'])
-            ->open()
-            ->whereDoesntHave('proposals', function ($q) use ($user) {
-                $q->where('provider_id', $user->id);
-            });
+            ->open();
 
         // Filtros
         if ($request->has('category')) {

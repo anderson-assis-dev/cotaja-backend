@@ -280,7 +280,7 @@ class OrderController extends Controller
 
         // Filtro por CEP (busca em raio próximo)
         if ($request->has('cep') && !empty($request->cep)) {
-            $cep = $request->cep;
+            $cep = preg_replace('/[^0-9]/', '', $request->cep); // Remove caracteres não numéricos
             
             // Validar formato do CEP (8 dígitos)
             if (strlen($cep) >= 5) {
@@ -289,10 +289,14 @@ class OrderController extends Controller
                 
                 // Buscar pedidos onde o endereço contém CEPs próximos
                 // Vamos considerar CEPs que começam com os mesmos 5 dígitos como "próximos"
-                $query->where('address', 'LIKE', '%' . $cepPrefix . '%');
+                $query->where(function($q) use ($cep, $cepPrefix) {
+                    $q->where('address', 'LIKE', '%' . $cep . '%')
+                      ->orWhere('address', 'LIKE', '%' . $cepPrefix . '%');
+                });
                 
                 Log::info('Filtro por CEP aplicado', [
-                    'cep_informado' => $cep,
+                    'cep_informado' => $request->cep,
+                    'cep_limpo' => $cep,
                     'cep_prefix' => $cepPrefix
                 ]);
             }

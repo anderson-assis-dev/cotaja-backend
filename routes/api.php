@@ -6,6 +6,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProposalController;
 use App\Http\Controllers\ServiceController;
+use App\Http\Controllers\NotificationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -28,6 +29,7 @@ Route::middleware("auth:sanctum")->group(function () {
     Route::get("/me", [AuthController::class, "me"]);
     Route::put("/profile", [AuthController::class, "updateProfile"]);
     Route::put("/profile-type", [AuthController::class, "updateProfileType"]);
+    Route::post("/fcm-token", [AuthController::class, "saveFcmToken"]);
 
     // Rotas de Pedidos
     Route::prefix('orders')->group(function () {
@@ -62,6 +64,14 @@ Route::middleware("auth:sanctum")->group(function () {
         Route::get('/{id}', [ServiceController::class, 'show']);
         Route::put('/{id}', [ServiceController::class, 'update']);
         Route::delete('/{id}', [ServiceController::class, 'destroy']);
+    });
+
+    // Rotas de Notificações
+    Route::prefix('notifications')->group(function () {
+        Route::get('/', [NotificationController::class, 'index']);
+        Route::get('/unread-count', [NotificationController::class, 'unreadCount']);
+        Route::put('/{id}/read', [NotificationController::class, 'markAsRead']);
+        Route::put('/mark-all-read', [NotificationController::class, 'markAllAsRead']);
     });
 });
 

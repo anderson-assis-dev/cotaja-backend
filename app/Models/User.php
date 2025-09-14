@@ -25,6 +25,8 @@ class User extends Authenticatable
         'phone',
         'address',
         'profile_type',
+        'service_categories',
+        'fcm_token',
         'password',
     ];
 
@@ -48,6 +50,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'service_categories' => 'array',
         ];
     }
 
@@ -73,6 +76,11 @@ class User extends Authenticatable
             ->where('attachable_type', User::class);
     }
 
+    public function notifications(): HasMany
+    {
+        return $this->hasMany(Notification::class);
+    }
+
     // Scopes
     public function scopeClients($query)
     {
@@ -93,5 +101,14 @@ class User extends Authenticatable
     public function isProvider()
     {
         return $this->profile_type === 'provider';
+    }
+
+    public function providesCategory($category)
+    {
+        if (!$this->isProvider() || !$this->service_categories) {
+            return false;
+        }
+
+        return in_array($category, $this->service_categories);
     }
 }

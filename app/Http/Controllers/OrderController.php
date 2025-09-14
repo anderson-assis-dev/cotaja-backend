@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\Proposal;
 use App\Models\Attachment;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
@@ -13,6 +14,12 @@ use Illuminate\Support\Facades\Log;
 
 class OrderController extends Controller
 {
+    protected NotificationService $notificationService;
+
+    public function __construct(NotificationService $notificationService)
+    {
+        $this->notificationService = $notificationService;
+    }
     /**
      * Listar pedidos do usuário autenticado
      */
@@ -112,6 +119,9 @@ class OrderController extends Controller
             }
 
             $order->load(['client', 'attachments']);
+
+            // Disparar notificações para providers da categoria
+            $this->notificationService->notifyProvidersAboutNewOrder($order);
 
             return response()->json([
                 'success' => true,
@@ -279,10 +289,7 @@ class OrderController extends Controller
                 
                 // Buscar pedidos onde o endereço contém CEPs próximos
                 // Vamos considerar CEPs que começam com os mesmos 5 dígitos como "próximos"
-                $query->where(function ($q) use ($cepPrefix) {
-                    $q->where('address', 'LIKE', $cepPrefix . '%')
-                      ->orWhere('address', 'REGEXP', '^[0-9]{5}'); // CEPs que começam com 5 dígitos
-                });
+                $query->where('address', 'LIKE', '%' . $cepPrefix . '%');
                 
                 Log::info('Filtro por CEP aplicado', [
                     'cep_informado' => $cep,

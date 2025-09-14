@@ -4,12 +4,19 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\Proposal;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
 
 class ProposalController extends Controller
 {
+    protected NotificationService $notificationService;
+
+    public function __construct(NotificationService $notificationService)
+    {
+        $this->notificationService = $notificationService;
+    }
     /**
      * Listar propostas do usuário autenticado
      */
@@ -104,6 +111,9 @@ class ProposalController extends Controller
         ]);
 
         $proposal->load(['order.client', 'provider']);
+
+        // Disparar notificação para o cliente
+        $this->notificationService->notifyClientAboutNewProposal($proposal);
 
         return response()->json([
             'success' => true,
@@ -243,6 +253,20 @@ class ProposalController extends Controller
             \DB::commit();
 
             $proposal->load(['order.client', 'provider']);
+
+            // Disparar notificação para o provider sobre proposta aceita
+            $this->notificationService->notifyProviderAboutAcceptedProposal($proposal);
+
+            // Disparar notificações para providers sobre propostas rejeitadas
+            $rejectedProposals = Proposal::where('order_id', $proposal->order_id)
+                ->where('id', '!=', $proposal->id)
+                ->where('status', Proposal::STATUS_REJECTED)
+                ->with('provider')
+                ->get();
+
+            foreach ($rejectedProposals as $rejectedProposal) {
+                $this->notificationService->notifyProviderAboutRejectedProposal($rejectedProposal);
+            }
 
             return response()->json([
                 'success' => true,

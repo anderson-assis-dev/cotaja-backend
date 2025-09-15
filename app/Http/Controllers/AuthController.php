@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Mail\WelcomeEmail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
@@ -39,6 +41,14 @@ class AuthController extends Controller
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;
+
+        // Enviar e-mail de boas-vindas
+        try {
+            Mail::to($user->email)->send(new WelcomeEmail($user));
+        } catch (\Exception $e) {
+            // Log do erro mas não falha o registro
+            \Log::error('Erro ao enviar e-mail de boas-vindas: ' . $e->getMessage());
+        }
 
         return response()->json([
             'success' => true,
@@ -156,7 +166,7 @@ class AuthController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'profile_type' => 'required|in:client,provider',
-            'service_categories' => 'required_if:profile_type,provider|array',
+            'service_categories' => 'sometimes|array',
             'service_categories.*' => 'string|max:100',
         ]);
 
@@ -171,9 +181,12 @@ class AuthController extends Controller
         $user = $request->user();
         $updateData = ['profile_type' => $request->profile_type];
         
-        // Se for provider, salvar as categorias de serviço
-        if ($request->profile_type === 'provider' && $request->has('service_categories')) {
+        // Se for provider e tiver service_categories, salvar as categorias de serviço
+        if ($request->profile_type === 'provider' && $request->has('service_categories') && $request->service_categories !== null) {
             $updateData['service_categories'] = $request->service_categories;
+        } elseif ($request->profile_type === 'client') {
+            // Se for client, limpar as categorias de serviço
+            $updateData['service_categories'] = null;
         }
         
         $user->update($updateData);

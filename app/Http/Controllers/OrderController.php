@@ -5,12 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\Proposal;
 use App\Models\Attachment;
+use App\Models\User;
+use App\Mail\NewOrderNotification;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class OrderController extends Controller
 {
@@ -122,6 +125,9 @@ class OrderController extends Controller
 
             // Disparar notificações para providers da categoria
             $this->notificationService->notifyProvidersAboutNewOrder($order);
+
+            // Enviar e-mails para prestadores da categoria
+            $this->sendNewOrderEmails($order);
 
             return response()->json([
                 'success' => true,
@@ -420,5 +426,40 @@ class OrderController extends Controller
             'success' => true,
             'data' => $stats
         ]);
+    }
+
+    /**
+     * Enviar e-mails para prestadores sobre nova demanda
+     */
+    private function sendNewOrderEmails(Order $order): void
+    {
+        try {
+            // Buscar prestadores que trabalham com a categoria da demanda
+            $providers = User::where('profile_type', 'provider')
+                ->whereJsonContains('service_categories', $order->category)
+                ->get();
+
+            foreach ($providers as $provider) {
+                try {
+                    Mail::to($provider->email)->send(new NewOrderNotification($order, $provider));
+                    Log::info('E-mail de nova demanda enviado', [
+                        'order_id' => $order->id,
+                        'provider_id' => $provider->id,
+                        'provider_email' => $provider->email
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error('Erro ao enviar e-mail de nova demanda', [
+                        'order_id' => $order->id,
+                        'provider_id' => $provider->id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error('Erro geral ao enviar e-mails de nova demanda', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage()
+            ]);
+        }
     }
 } 

@@ -4,10 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\Proposal;
+use App\Models\User;
+use App\Mail\NewProposalNotification;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 
 class ProposalController extends Controller
 {
@@ -114,6 +118,9 @@ class ProposalController extends Controller
 
         // Disparar notificação para o cliente
         $this->notificationService->notifyClientAboutNewProposal($proposal);
+
+        // Enviar e-mail para o cliente sobre a nova proposta
+        $this->sendNewProposalEmail($proposal);
 
         return response()->json([
             'success' => true,
@@ -344,5 +351,31 @@ class ProposalController extends Controller
             'success' => true,
             'message' => 'Proposta cancelada com sucesso!'
         ]);
+    }
+
+    /**
+     * Enviar e-mail para o cliente sobre nova proposta
+     */
+    private function sendNewProposalEmail(Proposal $proposal): void
+    {
+        try {
+            $order = $proposal->order;
+            $client = $order->client;
+
+            Mail::to($client->email)->send(new NewProposalNotification($proposal, $order, $client));
+            
+            Log::info('E-mail de nova proposta enviado', [
+                'proposal_id' => $proposal->id,
+                'order_id' => $order->id,
+                'client_id' => $client->id,
+                'client_email' => $client->email
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Erro ao enviar e-mail de nova proposta', [
+                'proposal_id' => $proposal->id,
+                'order_id' => $proposal->order_id,
+                'error' => $e->getMessage()
+            ]);
+        }
     }
 } 

@@ -1,0 +1,297 @@
+const { pool } = require('../config/database');
+const bcrypt = require('bcryptjs');
+
+class User {
+    constructor(data = {}) {
+        this.id = data.id || null;
+        this.name = data.name || null;
+        this.email = data.email || null;
+        this.phone = data.phone || null;
+        this.address = data.address || null;
+        this.profile_type = data.profile_type || 'client';
+        this.service_categories = data.service_categories || null;
+        this.fcm_token = data.fcm_token || null;
+        this.device_platform = data.device_platform || null;
+        this.password = data.password || null;
+        this.email_verified_at = data.email_verified_at || null;
+        this.remember_token = data.remember_token || null;
+        this.created_at = data.created_at || null;
+        this.updated_at = data.updated_at || null;
+        this.balance = data.balance || null;
+        this.rate = data.rate || null;
+        this.active_services = data.active_services || null;
+        this.completed_services = data.completed_services || null;
+
+    }
+
+    static async create(userData) {
+        const connection = await pool.getConnection();
+        try {
+            // Hash password
+            const hashedPassword = await bcrypt.hash(userData.password, 10);
+
+            const [result] = await connection.execute(
+                `INSERT INTO users (name, email, phone, password, profile_type, address, service_categories, fcm_token, device_platform, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+                [
+                    userData.name,
+                    userData.email,
+                    userData.phone || null,
+                    hashedPassword,
+                    userData.profile_type || 'client',
+                    userData.address || null,
+                    userData.service_categories ? JSON.stringify(userData.service_categories) : null,
+                    userData.fcm_token || null,
+                    userData.device_platform || null
+                ]
+            );
+
+            return await User.findById(result.insertId);
+        } finally {
+            connection.release();
+        }
+    }
+
+    static async findById(id) {
+        const connection = await pool.getConnection();
+        try {
+            const [rows] = await connection.execute(
+                'SELECT * FROM users WHERE id = ?',
+                [id]
+            );
+
+            if (rows.length === 0) return null;
+
+            const userData = rows[0];
+            // Parse service_categories JSON
+            if (userData.service_categories) {
+                userData.service_categories = JSON.parse(userData.service_categories);
+            }
+
+            return new User(userData);
+        } finally {
+            connection.release();
+        }
+    }
+
+    static async findByEmail(email) {
+        const connection = await pool.getConnection();
+        try {
+            const [rows] = await connection.execute(
+                'SELECT * FROM users WHERE email = ?',
+                [email]
+            );
+
+            if (rows.length === 0) return null;
+
+            const userData = rows[0];
+            // Parse service_categories JSON
+            if (userData.service_categories) {
+                userData.service_categories = JSON.parse(userData.service_categories);
+            }
+
+            return new User(userData);
+        } finally {
+            connection.release();
+        }
+    }
+
+    static async findClients() {
+        const connection = await pool.getConnection();
+        try {
+            const [rows] = await connection.execute(
+                'SELECT * FROM users WHERE profile_type = ?',
+                ['client']
+            );
+
+            return rows.map(userData => {
+                if (userData.service_categories) {
+                    userData.service_categories = JSON.parse(userData.service_categories);
+                }
+                return new User(userData);
+            });
+        } finally {
+            connection.release();
+        }
+    }
+
+    static async findProviders() {
+        const connection = await pool.getConnection();
+        try {
+            const [rows] = await connection.execute(
+                'SELECT * FROM users WHERE profile_type = ?',
+                ['provider']
+            );
+
+            return rows.map(userData => {
+                if (userData.service_categories) {
+                    userData.service_categories = JSON.parse(userData.service_categories);
+                }
+                return new User(userData);
+            });
+        } finally {
+            connection.release();
+        }
+    }
+
+    static async findProvidersByCategory(category) {
+        const connection = await pool.getConnection();
+        try {
+            const [rows] = await connection.execute(
+                'SELECT * FROM users WHERE profile_type = ? AND JSON_CONTAINS(service_categories, ?)',
+                ['provider', JSON.stringify(category)]
+            );
+
+            return rows.map(userData => {
+                if (userData.service_categories) {
+                    userData.service_categories = JSON.parse(userData.service_categories);
+                }
+                return new User(userData);
+            });
+        } finally {
+            connection.release();
+        }
+    }
+
+    /**
+     * Get all providers with FCM tokens for push notifications
+     * @param {string} category - Optional: Filter by service category
+     * @returns {Array} Array of objects with {id, fcm_token, device_platform}
+     */
+    static async getProviderTokens(category = null) {
+        const connection = await pool.getConnection();
+        try {
+            let query = `
+                SELECT id, fcm_token, device_platform, name, email
+                FROM users
+                WHERE profile_type = 'provider'
+                AND fcm_token IS NOT NULL
+                AND fcm_token != ''
+            `;
+            const params = [];
+
+            if (category) {
+                query += ' AND JSON_CONTAINS(service_categories, ?)';
+                params.push(JSON.stringify(category));
+            }
+
+            console.log('🔍 [getProviderTokens] Query:', query);
+            console.log('🔍 [getProviderTokens] Params:', params);
+
+            const [rows] = await connection.execute(query, params);
+
+            console.log(`📊 [getProviderTokens] Encontrados ${rows.length} providers com FCM token`);
+
+            const result = rows.map(row => {
+                console.log(`   - Provider ID ${row.id}: ${row.name} (${row.email}) - Platform: ${row.device_platform || 'ios'} - Token: ${row.fcm_token ? row.fcm_token.substring(0, 20) + '...' : 'AUSENTE'}`);
+                return {
+                    id: row.id,
+                    name: row.name,
+                    email: row.email,
+                    token: row.fcm_token,
+                    platform: row.device_platform || 'ios'
+                };
+            });
+
+            return result;
+        } finally {
+            connection.release();
+        }
+    }
+
+    async update(updateData) {
+        const connection = await pool.getConnection();
+        try {
+            const fields = [];
+            const values = [];
+
+            Object.keys(updateData).forEach(key => {
+                if (updateData[key] !== undefined && key !== 'id') {
+                    fields.push(`${key} = ?`);
+                    if (key === 'service_categories' && updateData[key]) {
+                        values.push(JSON.stringify(updateData[key]));
+                    } else {
+                        values.push(updateData[key]);
+                    }
+                }
+            });
+
+            if (fields.length === 0) return this;
+
+            fields.push('updated_at = NOW()');
+            values.push(this.id);
+
+            await connection.execute(
+                `UPDATE users SET ${fields.join(', ')} WHERE id = ?`,
+                values
+            );
+
+            // Update current instance
+            Object.keys(updateData).forEach(key => {
+                if (updateData[key] !== undefined) {
+                    this[key] = updateData[key];
+                }
+            });
+
+            return this;
+        } finally {
+            connection.release();
+        }
+    }
+
+    async save() {
+        if (this.id) {
+            return await this.update(this.toObject());
+        } else {
+            const created = await User.create(this.toObject());
+            Object.assign(this, created);
+            return this;
+        }
+    }
+
+    async delete() {
+        if (!this.id) return false;
+
+        const connection = await pool.getConnection();
+        try {
+            await connection.execute('DELETE FROM users WHERE id = ?', [this.id]);
+            return true;
+        } finally {
+            connection.release();
+        }
+    }
+
+    async verifyPassword(password) {
+        return await bcrypt.compare(password, this.password);
+    }
+
+    isClient() {
+        return this.profile_type === 'client';
+    }
+
+    isProvider() {
+        return this.profile_type === 'provider';
+    }
+
+    providesCategory(category) {
+        if (!this.isProvider() || !this.service_categories) {
+            return false;
+        }
+
+        return this.service_categories.includes(category);
+    }
+
+    toObject() {
+        const obj = { ...this };
+        delete obj.password; // Remove password from object representation
+        return obj;
+    }
+
+    toJSON() {
+        const obj = this.toObject();
+        delete obj.remember_token; // Also remove remember_token
+        return obj;
+    }
+}
+
+module.exports = User;

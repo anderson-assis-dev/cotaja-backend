@@ -1,0 +1,40 @@
+{
+  "name": "cotaja-nodejs",
+  "version": "1.0.0",
+  "description": "Cotaja API converted from Laravel to Node.js",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "apn": "^2.2.0",
+    "bcryptjs": "^2.4.3",
+    "clamscan": "^2.4.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-fileupload": "^1.4.0",
+    "express-rate-limit": "^6.10.0",
+    "express-validator": "^7.0.1",
+    "helmet": "^7.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "moment": "^2.29.4",
+    "multer": "^1.4.5-lts.1",
+    "mysql2": "^3.6.0",
+    "nodemailer": "^6.9.4"
+  },
+  "devDependencies": {
+    "jest": "^29.6.2",
+    "nodemon": "^3.0.1"
+  },
+  "keywords": [
+    "api",
+    "express",
+    "mysql",
+    "nodejs"
+  ],
+  "author": "",
+  "license": "ISC"
+}

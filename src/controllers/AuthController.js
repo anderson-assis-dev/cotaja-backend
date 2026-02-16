@@ -4,7 +4,7 @@ const nodemailer = require('nodemailer');
 const path = require('path');
 
 // Helper function to send welcome email
-async function sendWelcomeEmail(user) {
+async function sendWelcomeEmail(user, activationToken) {
     try {
         // Create transporter for Gmail
         const transporter = nodemailer.createTransport({
@@ -23,11 +23,14 @@ async function sendWelcomeEmail(user) {
 
         console.log('📧 Enviando email de boas-vindas para:', user.email);
 
+        const serverUrl = process.env.SERVER_URL || 'http://192.99.4.143:53000';
+        const activationLink = `${serverUrl}/api/auth/activate/${activationToken}`;
+
         // Send mail with embedded image
         await transporter.sendMail({
             from: `"${process.env.MAIL_FROM_NAME}" <${process.env.MAIL_FROM_ADDRESS}>`,
             to: user.email,
-            subject: 'Bem-vindo ao Cotaja!',
+            subject: 'Bem-vindo ao Cotaja! Ative sua conta',
             html: `
                 <!DOCTYPE html>
                 <html lang="pt-BR">
@@ -67,23 +70,32 @@ async function sendWelcomeEmail(user) {
                                             </p>
 
                                             <p style="margin: 0 0 15px 0; color: #4b5563; font-size: 16px; line-height: 1.6; text-align: justify;">
-                                                Sua conta foi criada com sucesso e agora você já pode começar a usar nossa plataforma para conectar-se com profissionais qualificados ou oferecer seus serviços.
+                                                Sua conta foi criada com sucesso! Para começar a usar nossa plataforma, é necessário ativar sua conta clicando no botão abaixo:
+                                            </p>
+
+                                            <!-- Botão de Ativação -->
+                                            <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                                                <tr>
+                                                    <td align="center" style="padding: 20px 0;">
+                                                        <a href="${activationLink}" style="display: inline-block; padding: 16px 48px; background-color: #16a34a; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 18px; font-weight: bold;">
+                                                            Ativar Minha Conta
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                            </table>
+
+                                            <p style="margin: 0 0 15px 0; color: #4b5563; font-size: 16px; line-height: 1.6; text-align: justify;">
+                                                Após a ativação, você poderá fazer login e conectar-se com profissionais qualificados ou oferecer seus serviços.
                                             </p>
 
                                             <p style="margin: 0 0 25px 0; color: #4b5563; font-size: 16px; line-height: 1.6; text-align: justify;">
                                                 Caso tenha qualquer dúvida durante o processo ou precise de suporte adicional, estamos à disposição para ajudar.
                                             </p>
 
-                                            <!-- Botão de Ação -->
-                                            <table cellpadding="0" cellspacing="0" border="0" width="100%">
-                                                <tr>
-                                                    <td align="center" style="padding: 10px 0;">
-                                                        <a href="https://cotaja.io" style="display: inline-block; padding: 14px 40px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: bold;">
-                                                            Acessar Plataforma
-                                                        </a>
-                                                    </td>
-                                                </tr>
-                                            </table>
+                                            <p style="margin: 0 0 10px 0; color: #9ca3af; font-size: 13px; line-height: 1.4; text-align: center;">
+                                                Se o botão não funcionar, copie e cole este link no seu navegador:<br/>
+                                                <a href="${activationLink}" style="color: #2563eb; word-break: break-all;">${activationLink}</a>
+                                            </p>
                                         </td>
                                     </tr>
 
@@ -163,8 +175,8 @@ class AuthController {
             console.log('📝 [BACKEND/REGISTER] Nome:', name);
             console.log('📧 [BACKEND/REGISTER] Email:', email);
             console.log('👤 [BACKEND/REGISTER] Profile Type:', profile_type || 'NÃO INFORMADO (padrão: client)');
-            console.log('📱 [BACKEND/REGISTER] FCM Token:', fcm_token ? fcm_token.substring(0, 30) + '...' : 'AUSENTE');
-            console.log('📱 [BACKEND/REGISTER] Platform:', device_platform || 'NÃO INFORMADA');
+            console.log('[SERVER] [BACKEND/REGISTER] FCM Token:', fcm_token ? fcm_token.substring(0, 30) + '...' : 'AUSENTE');
+            console.log('[SERVER] [BACKEND/REGISTER] Platform:', device_platform || 'NÃO INFORMADA');
             console.log('📦 [BACKEND/REGISTER] Body completo:', JSON.stringify(req.body, null, 2));
 
             // Check if user already exists
@@ -202,22 +214,19 @@ class AuthController {
                 console.log('✅ FCM token salvo no registro:', fcm_token.substring(0, 20) + '...');
             }
 
-            // Generate token
-            const token = generateToken({ userId: user.id });
-
-            // Send welcome email
+            // Send welcome email with activation link
             try {
-                await sendWelcomeEmail(user);
+                await sendWelcomeEmail(user, user.activation_token);
             } catch (error) {
                 console.error('Erro ao enviar e-mail de boas-vindas:', error.message);
             }
 
             return res.status(201).json({
                 success: true,
-                message: 'Usuário registrado com sucesso',
+                message: 'Cadastro realizado com sucesso! Verifique seu email para ativar sua conta.',
                 data: {
                     user: user.toJSON(),
-                    token
+                    requiresActivation: true
                 }
             });
         } catch (error) {
@@ -234,8 +243,8 @@ class AuthController {
             const { email, password, fcm_token, device_platform } = req.body;
 
             console.log('🔐 [BACKEND/LOGIN] Email:', email);
-            console.log('📱 [BACKEND/LOGIN] FCM Token:', fcm_token ? fcm_token.substring(0, 30) + '...' : 'AUSENTE');
-            console.log('📱 [BACKEND/LOGIN] Platform:', device_platform || 'NÃO INFORMADA');
+            console.log('[SERVER] [BACKEND/LOGIN] FCM Token:', fcm_token ? fcm_token.substring(0, 30) + '...' : 'AUSENTE');
+            console.log('[SERVER] [BACKEND/LOGIN] Platform:', device_platform || 'NÃO INFORMADA');
             console.log('📦 [BACKEND/LOGIN] Body completo:', JSON.stringify(req.body, null, 2));
 
             // Find user by email
@@ -253,6 +262,14 @@ class AuthController {
                 return res.status(401).json({
                     success: false,
                     message: 'Credenciais inválidas'
+                });
+            }
+
+            // Check if account is activated
+            if (user.activate !== 1) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Sua conta ainda não foi ativada. Verifique seu email para ativar sua conta.'
                 });
             }
 
@@ -385,9 +402,9 @@ class AuthController {
         try {
             const { fcm_token, device_platform } = req.body;
 
-            console.log('📱 Salvando FCM token para usuário:', req.user.id);
-            console.log('📱 Token:', fcm_token ? fcm_token.substring(0, 20) + '...' : 'Ausente');
-            console.log('📱 Platform:', device_platform || 'Não informada');
+            console.log('[SERVER] Salvando FCM token para usuário:', req.user.id);
+            console.log('[SERVER] Token:', fcm_token ? fcm_token.substring(0, 20) + '...' : 'Ausente');
+            console.log('[SERVER] Platform:', device_platform || 'Não informada');
 
             if (!fcm_token) {
                 return res.status(400).json({
@@ -411,6 +428,101 @@ class AuthController {
             });
         } catch (error) {
             console.error('❌ Erro ao salvar token FCM:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Erro interno do servidor'
+            });
+        }
+    }
+
+    async activate(req, res) {
+        try {
+            const { token } = req.params;
+
+            if (!token) {
+                return res.status(400).send(this._activationPage('Erro', 'Token de ativação não fornecido.', false));
+            }
+
+            const user = await User.findByActivationToken(token);
+
+            if (!user) {
+                return res.status(404).send(this._activationPage('Token Inválido', 'O link de ativação é inválido ou já foi utilizado.', false));
+            }
+
+            if (user.activate === 1) {
+                return res.status(200).send(this._activationPage('Conta Já Ativa', 'Sua conta já está ativa. Você já pode fazer login no aplicativo.', true));
+            }
+
+            // Activate the account
+            await user.update({
+                activate: 1,
+                email_verified_at: new Date().toISOString().slice(0, 19).replace('T', ' '),
+                activation_token: null
+            });
+
+            console.log('✅ Conta ativada com sucesso para:', user.email);
+
+            return res.status(200).send(this._activationPage('Conta Ativada!', `Parabéns ${user.name}! Sua conta foi ativada com sucesso. Agora você pode fazer login no aplicativo Cotaja.`, true));
+        } catch (error) {
+            console.error('❌ Erro ao ativar conta:', error);
+            return res.status(500).send(this._activationPage('Erro', 'Ocorreu um erro ao ativar sua conta. Tente novamente mais tarde.', false));
+        }
+    }
+
+    _activationPage(title, message, success) {
+        const color = success ? '#16a34a' : '#dc2626';
+        const icon = success ? '✓' : '✗';
+        return `
+            <!DOCTYPE html>
+            <html lang="pt-BR">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>${title} - Cotaja</title>
+                <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body { font-family: Arial, sans-serif; background-color: #f4f4f4; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+                    .card { background: white; border-radius: 12px; padding: 40px; max-width: 500px; width: 100%; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+                    .icon { width: 80px; height: 80px; border-radius: 50%; background-color: ${color}; color: white; font-size: 40px; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; }
+                    h1 { color: #1f2937; font-size: 24px; margin-bottom: 16px; }
+                    p { color: #4b5563; font-size: 16px; line-height: 1.6; margin-bottom: 24px; }
+                    .brand { color: #2563eb; font-weight: bold; font-size: 14px; }
+                </style>
+            </head>
+            <body>
+                <div class="card">
+                    <div class="icon">${icon}</div>
+                    <h1>${title}</h1>
+                    <p>${message}</p>
+                    <p class="brand">Cotaja</p>
+                </div>
+            </body>
+            </html>
+        `;
+    }
+
+    async updateAvatar(req, res) {
+        try {
+            const { avatar_base64 } = req.body;
+
+            if (!avatar_base64) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Imagem não fornecida'
+                });
+            }
+
+            await req.user.update({ avatar_base64 });
+
+            return res.json({
+                success: true,
+                message: 'Foto de perfil atualizada com sucesso',
+                data: {
+                    avatar_base64: avatar_base64
+                }
+            });
+        } catch (error) {
+            console.error('❌ Erro ao atualizar avatar:', error);
             return res.status(500).json({
                 success: false,
                 message: 'Erro interno do servidor'

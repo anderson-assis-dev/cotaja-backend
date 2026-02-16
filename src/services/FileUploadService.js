@@ -155,24 +155,12 @@ class FileUploadService {
     }
 
     /**
-     * Process uploaded files - scan for viruses and return file metadata
-     * Moves files from temp to final location
+     * Process uploaded files — convert to base64 and return metadata with embedded data.
+     * Files are read from the temp directory, converted to base64, then deleted.
+     * No files are permanently stored on disk.
      */
     async processUploadedFiles(files, clientEmail, orderTitle) {
         const processedFiles = [];
-        const path = require('path');
-
-        // Create final directory
-        const sanitizedEmail = this.sanitizeForFilename(clientEmail);
-        const sanitizedTitle = this.sanitizeForFilename(orderTitle);
-        const finalDir = path.join(this.uploadDir, sanitizedEmail, sanitizedTitle);
-
-        try {
-            await fs.mkdir(finalDir, { recursive: true });
-        } catch (error) {
-            console.error('Erro ao criar diretório:', error);
-            throw error;
-        }
 
         for (const file of files) {
             try {
@@ -180,7 +168,6 @@ class FileUploadService {
                 const scanResult = await this.scanFileForVirus(file.path);
 
                 if (scanResult.isInfected) {
-                    // Skip infected files
                     console.log(`🦠 Arquivo infectado removido: ${file.originalname}`);
                     continue;
                 }
@@ -193,28 +180,36 @@ class FileUploadService {
                     fileType = 'video';
                 }
 
-                // Generate unique filename
-                const ext = path.extname(file.originalname || '');
-                const uniqueName = `${Date.now()}_${Math.round(Math.random() * 1E9)}${ext}`;
-                const finalPath = path.join(finalDir, uniqueName);
+                // Read file and convert to base64
+                const fileBuffer = await fs.readFile(file.path);
+                const base64Data = fileBuffer.toString('base64');
+                const mimeType = file.mimetype || 'application/octet-stream';
 
-                // Move file from temp to final location
-                await fs.rename(file.path, finalPath);
+                // Build data URI: data:<mime>;base64,<data>
+                const dataUri = `data:${mimeType};base64,${base64Data}`;
 
                 processedFiles.push({
-                    filename: uniqueName,
+                    filename: file.originalname || 'file',
                     original_name: file.originalname || 'file',
-                    path: finalPath.replace(/\\/g, '/'), // Normalize path separators
-                    mime_type: file.mimetype || 'application/octet-stream',
+                    data: dataUri,
+                    mime_type: mimeType,
                     size: file.size || 0,
                     type: fileType,
                     uploaded_at: new Date().toISOString()
                 });
 
-                console.log(`✅ Arquivo processado: ${file.originalname} → ${uniqueName}`);
+                console.log(`✅ Arquivo convertido para base64: ${file.originalname} (${(base64Data.length / 1024).toFixed(1)} KB)`);
+
+                // Delete temp file
+                try {
+                    await fs.unlink(file.path);
+                } catch (e) {
+                    // ignore cleanup errors
+                }
             } catch (error) {
                 console.error(`Erro ao processar arquivo ${file.originalname}:`, error);
-                // Continue processing other files
+                // Try to clean up temp file
+                try { await fs.unlink(file.path); } catch (e) { /* ignore */ }
             }
         }
 

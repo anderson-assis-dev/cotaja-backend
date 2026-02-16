@@ -1,5 +1,6 @@
 const { pool } = require('../config/database');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 class User {
     constructor(data = {}) {
@@ -21,19 +22,28 @@ class User {
         this.rate = data.rate || null;
         this.active_services = data.active_services || null;
         this.completed_services = data.completed_services || null;
-
+        this.avatar_base64 = data.avatar_base64 || null;
+        this.activate = data.activate !== undefined ? data.activate : 0;
+        this.activation_token = data.activation_token || null;
     }
 
     static async create(userData) {
         const connection = await pool.getConnection();
         try {
+            // Generate UUID
+            const uuid = crypto.randomUUID();
+
             // Hash password
             const hashedPassword = await bcrypt.hash(userData.password, 10);
 
-            const [result] = await connection.execute(
-                `INSERT INTO users (name, email, phone, password, profile_type, address, service_categories, fcm_token, device_platform, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+            // Generate activation token
+            const activationToken = crypto.randomUUID();
+
+            await connection.execute(
+                `INSERT INTO users (id, name, email, phone, password, profile_type, address, service_categories, fcm_token, device_platform, activate, activation_token, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
                 [
+                    uuid,
                     userData.name,
                     userData.email,
                     userData.phone || null,
@@ -42,11 +52,13 @@ class User {
                     userData.address || null,
                     userData.service_categories ? JSON.stringify(userData.service_categories) : null,
                     userData.fcm_token || null,
-                    userData.device_platform || null
+                    userData.device_platform || null,
+                    0,
+                    activationToken
                 ]
             );
 
-            return await User.findById(result.insertId);
+            return await User.findById(uuid);
         } finally {
             connection.release();
         }
@@ -86,6 +98,27 @@ class User {
 
             const userData = rows[0];
             // Parse service_categories JSON
+            if (userData.service_categories) {
+                userData.service_categories = JSON.parse(userData.service_categories);
+            }
+
+            return new User(userData);
+        } finally {
+            connection.release();
+        }
+    }
+
+    static async findByActivationToken(token) {
+        const connection = await pool.getConnection();
+        try {
+            const [rows] = await connection.execute(
+                'SELECT * FROM users WHERE activation_token = ?',
+                [token]
+            );
+
+            if (rows.length === 0) return null;
+
+            const userData = rows[0];
             if (userData.service_categories) {
                 userData.service_categories = JSON.parse(userData.service_categories);
             }
@@ -289,7 +322,8 @@ class User {
 
     toJSON() {
         const obj = this.toObject();
-        delete obj.remember_token; // Also remove remember_token
+        delete obj.remember_token;
+        delete obj.activation_token;
         return obj;
     }
 }

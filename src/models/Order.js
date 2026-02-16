@@ -16,9 +16,23 @@ class Order {
         this.accepted_proposal_id = data.accepted_proposal_id || null;
         this.auction_started_at = data.auction_started_at || null;
         this.auction_ends_at = data.auction_ends_at || null;
-        this.attachments = data.attachments || null;
+        // MySQL JSON columns may return as string — ensure it's parsed
+        if (typeof data.attachments === 'string') {
+            try {
+                this.attachments = JSON.parse(data.attachments);
+            } catch (e) {
+                this.attachments = null;
+            }
+        } else {
+            this.attachments = data.attachments || null;
+        }
         this.created_at = data.created_at || null;
         this.updated_at = data.updated_at || null;
+
+        // Initialize relations as empty arrays
+        this.proposals = [];
+        this.client = null;
+        this.provider = null;
     }
 
     static get STATUS_OPEN() { return 'open'; }
@@ -311,7 +325,7 @@ class Order {
             // Load client
             if (this.client_id) {
                 const [clientRows] = await connection.execute(
-                    'SELECT id, name, email, phone, profile_type FROM users WHERE id = ?',
+                    'SELECT id, name, email, phone, profile_type, avatar_base64 FROM users WHERE id = ?',
                     [this.client_id]
                 );
                 this.client = clientRows[0] || null;
@@ -320,7 +334,7 @@ class Order {
             // Load provider
             if (this.provider_id) {
                 const [providerRows] = await connection.execute(
-                    'SELECT id, name, email, phone, profile_type FROM users WHERE id = ?',
+                    'SELECT id, name, email, phone, profile_type, avatar_base64 FROM users WHERE id = ?',
                     [this.provider_id]
                 );
                 this.provider = providerRows[0] || null;
@@ -328,20 +342,10 @@ class Order {
 
             // Load proposals
             const [proposalRows] = await connection.execute(
-                'SELECT p.*, u.name as provider_name, u.email as provider_email FROM proposals p LEFT JOIN users u ON p.provider_id = u.id WHERE p.order_id = ?',
+                'SELECT p.*, u.name as provider_name, u.email as provider_email, u.avatar_base64 as provider_avatar_base64 FROM proposals p LEFT JOIN users u ON p.provider_id = u.id WHERE p.order_id = ?',
                 [this.id]
             );
             this.proposals = proposalRows;
-
-            // REMOVIDO: Não sobrescrever attachments
-            // Os anexos já estão armazenados no campo JSON attachments
-            // Não precisamos buscar de uma tabela separada
-            // const [attachmentRows] = await connection.execute(
-            //     'SELECT * FROM attachments WHERE attachable_type = ? AND attachable_id = ?',
-            //     ['App\\Models\\Order', this.id]
-            // );
-            // this.attachments = attachmentRows;
-
         } finally {
             if (shouldCloseConnection) {
                 connection.release();
@@ -389,7 +393,27 @@ class Order {
     }
 
     toJSON() {
-        return { ...this };
+        return {
+            id: this.id,
+            title: this.title,
+            description: this.description,
+            category: this.category,
+            budget: this.budget,
+            deadline: this.deadline,
+            address: this.address,
+            status: this.status,
+            client_id: this.client_id,
+            provider_id: this.provider_id,
+            accepted_proposal_id: this.accepted_proposal_id,
+            auction_started_at: this.auction_started_at,
+            auction_ends_at: this.auction_ends_at,
+            attachments: this.attachments,
+            created_at: this.created_at,
+            updated_at: this.updated_at,
+            proposals: this.proposals || [],
+            client: this.client,
+            provider: this.provider,
+        };
     }
 }
 

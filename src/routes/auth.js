@@ -13,6 +13,7 @@ const {
 // Public routes
 router.post('/register', registerValidation, authController.register);
 router.post('/login', loginValidation, authController.login);
+router.get('/activate/:token', authController.activate.bind(authController));
 
 // Protected routes
 router.post('/logout', authenticateToken, authController.logout);
@@ -20,5 +21,6 @@ router.get('/me', authenticateToken, authController.me);
 router.put('/profile', authenticateToken, updateProfileValidation, authController.updateProfile);
 router.put('/profile-type', authenticateToken, updateProfileTypeValidation, authController.updateProfileType);
 router.post('/fcm-token', authenticateToken, fcmTokenValidation, authController.saveFcmToken);
+router.put('/avatar', authenticateToken, authController.updateAvatar);
 
 module.exports = router;

@@ -2,6 +2,7 @@ const Proposal = require('../models/Proposal');
 const Order = require('../models/Order');
 const User = require('../models/User');
 const notificationService = require('../services/NotificationService');
+const emailService = require('../services/EmailService');
 const { pool } = require('../config/database');
 const nodemailer = require('nodemailer');
 
@@ -141,9 +142,14 @@ class ProposalController {
                 console.error('Erro ao enviar notificação:', error);
             }
 
-            // Send email to client
+            // Send email to client using EmailService
             try {
-                await this.sendNewProposalEmail(proposal);
+                const client = await User.findById(order.client_id);
+                const provider = await User.findById(user.id);
+
+                if (client && provider) {
+                    await emailService.sendNewProposalToClient(order, proposal, client, provider);
+                }
             } catch (error) {
                 console.error('Erro ao enviar e-mail:', error);
             }

@@ -87,7 +87,8 @@ class NotificationService {
                 throw new Error('Dados da proposta incompletos');
             }
 
-            return await this.createNotification({
+            // Create database notification
+            const notification = await this.createNotification({
                 user_id: proposal.order.client_id,
                 type: Notification.TYPE_NEW_PROPOSAL,
                 title: 'Nova proposta recebida',
@@ -100,6 +101,34 @@ class NotificationService {
                     proposal_price: proposal.price
                 }
             });
+
+            // Send push notification to the client
+            try {
+                const client = await User.findById(proposal.order.client_id);
+                if (client && client.fcm_token) {
+                    console.log(`📱 Enviando push notification para cliente ${client.name} (${client.email})`);
+
+                    const pushTitle = 'Nova proposta recebida! 🎉';
+                    const pushMessage = `${proposal.provider.name} enviou uma proposta de R$ ${parseFloat(proposal.price).toFixed(2).replace('.', ',')} para "${proposal.order.title}"`;
+
+                    await this.pushService.sendAlert({
+                        registration_id: client.fcm_token,
+                        device: client.device_platform || 'ios',
+                        title: pushTitle,
+                        message: pushMessage,
+                        sound: 'default'
+                    });
+
+                    console.log(`✅ Push notification enviada para cliente ${client.name}`);
+                } else {
+                    console.log(`⚠️ Cliente ${proposal.order.client_id} não possui FCM token para push notification`);
+                }
+            } catch (pushError) {
+                console.error('❌ Erro ao enviar push notification para cliente:', pushError.message);
+                // Não lançar erro - a notificação no banco já foi criada
+            }
+
+            return notification;
         } catch (error) {
             console.error('Erro ao notificar cliente sobre nova proposta:', error);
             throw error;

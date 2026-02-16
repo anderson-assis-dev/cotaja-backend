@@ -3,6 +3,8 @@ const Proposal = require('../models/Proposal');
 const User = require('../models/User');
 const notificationService = require('../services/NotificationService');
 const fileUploadService = require('../services/FileUploadService');
+const emailService = require('../services/EmailService');
+const pushNotificationService = require('../services/PushNotificationService');
 const nodemailer = require('nodemailer');
 const moment = require('moment');
 
@@ -215,6 +217,25 @@ class OrderController {
                 }
             }
 
+            // Filtrar anexos removidos pelo cliente
+            let removedPaths = [];
+            if (req.body.removedAttachments) {
+                try {
+                    removedPaths = JSON.parse(req.body.removedAttachments);
+                    console.log('🗑️ Anexos a remover:', removedPaths.length);
+                } catch (e) {
+                    console.error('Erro ao parsear removedAttachments:', e);
+                }
+            }
+
+            if (removedPaths.length > 0) {
+                existingAttachments = existingAttachments.filter(att => {
+                    const attId = att.filename || att.original_name || att.path || '';
+                    return !removedPaths.includes(attId);
+                });
+                console.log('📎 Anexos restantes após remoção:', existingAttachments.length);
+            }
+
             // Processar novos anexos se houver
             let newAttachments = [];
             if (req.files && req.files.length > 0) {
@@ -229,8 +250,8 @@ class OrderController {
                 console.log('📎 Novos anexos processados:', newAttachments.length);
             }
 
-            // Se houver novos anexos ou se é uma atualização de anexos, atualizar a lista
-            if (newAttachments.length > 0 || req.files) {
+            // Atualizar anexos se houve remoção ou adição
+            if (removedPaths.length > 0 || newAttachments.length > 0 || req.files) {
                 const allAttachments = [...existingAttachments, ...newAttachments];
                 updateData.attachments = JSON.stringify(allAttachments);
                 console.log('💾 Total de anexos após atualização:', allAttachments.length);
@@ -282,6 +303,19 @@ class OrderController {
                 });
             }
 
+            // Get proposals for this order before deletion
+            const proposals = await Proposal.findByOrder(id);
+            console.log(`📧 Pedido tem ${proposals.length} proposta(s)`);
+
+            // Get provider details for each proposal
+            const providersWithProposals = [];
+            for (const proposal of proposals) {
+                const provider = await User.findById(proposal.provider_id);
+                if (provider && provider.email) {
+                    providersWithProposals.push(provider);
+                }
+            }
+
             // Delete attachments from filesystem
             if (order.attachments) {
                 try {
@@ -295,6 +329,40 @@ class OrderController {
             }
 
             await order.delete();
+
+            // Send notifications to providers who submitted proposals
+            if (providersWithProposals.length > 0) {
+                console.log(`📧 Enviando notificações para ${providersWithProposals.length} prestador(es)`);
+
+                // Send push notifications
+                try {
+                    const providerTokens = providersWithProposals
+                        .filter(p => p.fcm_token)
+                        .map(p => p.fcm_token);
+
+                    if (providerTokens.length > 0) {
+                        await pushNotificationService.sendBulkNotifications(
+                            providerTokens,
+                            'Pedido Excluído',
+                            `O pedido "${order.title}" foi excluído pelo cliente`,
+                            {
+                                type: 'order_deleted',
+                                order_id: order.id,
+                                order_title: order.title
+                            }
+                        );
+                    }
+                } catch (error) {
+                    console.error('Erro ao enviar push notifications:', error);
+                }
+
+                // Send emails
+                try {
+                    await emailService.sendOrderDeletedToProviders(order, providersWithProposals);
+                } catch (error) {
+                    console.error('Erro ao enviar emails:', error);
+                }
+            }
 
             return res.json({
                 success: true,
@@ -340,6 +408,13 @@ class OrderController {
                 last_page: Math.ceil(orders.length / limit),
                 data: paginatedOrders
             };
+
+            // Debug log
+            console.log('📤 Enviando pedidos - First order proposals:', paginatedOrders[0]?.proposals?.length || 0);
+            const jsonStr = JSON.stringify(paginatedOrders[0]);
+            console.log('📤 First order JSON length:', jsonStr.length);
+            console.log('📤 JSON contains proposals?', jsonStr.includes('"proposals"'));
+            console.log('📤 Proposals in JSON:', jsonStr.substring(jsonStr.indexOf('"proposals"'), jsonStr.indexOf('"proposals"') + 200));
 
             return res.json({
                 success: true,

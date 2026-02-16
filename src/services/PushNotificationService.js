@@ -6,10 +6,33 @@ const apn = require('apn');
 
 class PushNotificationService {
     constructor() {
+        // Load Firebase Service Account from JSON file
+        const serviceAccountPath = process.env.FIREBASE_PRIVATE_KEY_PATH || './certificates/firebase-service-account.json';
+        let serviceAccount = null;
+
+        try {
+            const fullPath = path.resolve(__dirname, '../../', serviceAccountPath);
+            if (fs.existsSync(fullPath)) {
+                serviceAccount = require(fullPath);
+                console.log('✅ Firebase Service Account loaded successfully');
+            } else {
+                console.log('⚠️  Firebase Service Account file not found:', fullPath);
+            }
+        } catch (error) {
+            console.log('⚠️  Error loading Firebase Service Account:', error.message);
+        }
+
         // Firebase configuration
-        this.clientEmail = process.env.FIREBASE_CLIENT_EMAIL || 'firebase-adminsdk-xxxx@cotaja.iam.gserviceaccount.com';
-        this.privateKey = process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') : null;
-        this.projectId = process.env.FIREBASE_PROJECT_ID || 'cotaja';
+        if (serviceAccount) {
+            this.clientEmail = serviceAccount.client_email;
+            this.privateKey = serviceAccount.private_key;
+            this.projectId = serviceAccount.project_id;
+        } else {
+            // Fallback to environment variables
+            this.clientEmail = process.env.FIREBASE_CLIENT_EMAIL || 'firebase-adminsdk-xxxx@cotaja.iam.gserviceaccount.com';
+            this.privateKey = process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') : null;
+            this.projectId = process.env.FIREBASE_PROJECT_ID || 'cotaja-pushnotification';
+        }
 
         // iOS configuration
         this.iosCertPath = process.env.IOS_CERT_PATH || './certificates/APNs_Certificate.pem';

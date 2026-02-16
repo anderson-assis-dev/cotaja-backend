@@ -68,6 +68,11 @@ class Proposal {
             let query = 'SELECT * FROM proposals WHERE order_id = ?';
             const params = [orderId];
 
+            if (options.provider_id) {
+                query += ' AND provider_id = ?';
+                params.push(options.provider_id);
+            }
+
             if (options.status) {
                 query += ' AND status = ?';
                 params.push(options.status);
@@ -260,7 +265,7 @@ class Proposal {
             // Load provider
             if (this.provider_id) {
                 const [providerRows] = await connection.execute(
-                    'SELECT id, name, email, phone, profile_type FROM users WHERE id = ?',
+                    'SELECT id, name, email, phone, profile_type, avatar_base64 FROM users WHERE id = ?',
                     [this.provider_id]
                 );
                 this.provider = providerRows[0] || null;

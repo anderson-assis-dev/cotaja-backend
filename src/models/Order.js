@@ -10,12 +10,28 @@ class Order {
         this.budget = data.budget || null;
         this.deadline = data.deadline || null;
         this.address = data.address || null;
+        this.street = data.street || null;
+        this.number = data.number || null;
+        this.complement = data.complement || null;
+        this.neighborhood = data.neighborhood || null;
+        this.city = data.city || null;
+        this.state = data.state || null;
+        this.zip_code = data.zip_code || null;
+        this.latitude = data.latitude || null;
+        this.longitude = data.longitude || null;
         this.status = data.status || 'open';
         this.client_id = data.client_id || null;
         this.provider_id = data.provider_id || null;
         this.accepted_proposal_id = data.accepted_proposal_id || null;
         this.auction_started_at = data.auction_started_at || null;
         this.auction_ends_at = data.auction_ends_at || null;
+        this.scheduled_date = data.scheduled_date || null;
+        this.schedule_confirmed_by_client = data.schedule_confirmed_by_client || 0;
+        this.schedule_confirmed_by_provider = data.schedule_confirmed_by_provider || 0;
+        this.schedule_reminder_1d_sent = data.schedule_reminder_1d_sent || 0;
+        this.schedule_reminder_1h_sent = data.schedule_reminder_1h_sent || 0;
+        this.cancel_reason = data.cancel_reason || null;
+        this.cancelled_by = data.cancelled_by || null;
         // MySQL JSON columns may return as string — ensure it's parsed
         if (typeof data.attachments === 'string') {
             try {
@@ -44,8 +60,8 @@ class Order {
         const connection = await pool.getConnection();
         try {
             const [result] = await connection.execute(
-                `INSERT INTO orders (title, description, category, budget, deadline, address, status, client_id, provider_id, accepted_proposal_id, auction_started_at, auction_ends_at, attachments, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+                `INSERT INTO orders (title, description, category, budget, deadline, address, street, number, complement, neighborhood, city, state, zip_code, latitude, longitude, status, client_id, provider_id, accepted_proposal_id, auction_started_at, auction_ends_at, attachments, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
                 [
                     orderData.title,
                     orderData.description,
@@ -53,6 +69,15 @@ class Order {
                     orderData.budget,
                     orderData.deadline,
                     orderData.address,
+                    orderData.street || null,
+                    orderData.number || null,
+                    orderData.complement || null,
+                    orderData.neighborhood || null,
+                    orderData.city || null,
+                    orderData.state || null,
+                    orderData.zip_code || null,
+                    orderData.latitude || null,
+                    orderData.longitude || null,
                     orderData.status || Order.STATUS_OPEN,
                     orderData.client_id,
                     orderData.provider_id || null,
@@ -182,9 +207,24 @@ class Order {
                 const cep = options.cep.replace(/[^0-9]/g, '');
                 if (cep.length >= 5) {
                     const cepPrefix = cep.substring(0, 5);
-                    query += ' AND (address LIKE ? OR address LIKE ?)';
-                    params.push(`%${cep}%`, `%${cepPrefix}%`);
+                    query += ' AND (zip_code LIKE ? OR address LIKE ? OR address LIKE ?)';
+                    params.push(`${cepPrefix}%`, `%${cep}%`, `%${cepPrefix}%`);
                 }
+            }
+
+            // Filter by proximity if coordinates provided
+            if (options.latitude && options.longitude) {
+                // Haversine formula approximation: ~111km per degree
+                const radiusKm = options.radiusKm || 50; // default 50km radius
+                const latDiff = radiusKm / 111;
+                const lngDiff = radiusKm / (111 * Math.cos(options.latitude * Math.PI / 180));
+                query += ' AND latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?';
+                params.push(
+                    options.latitude - latDiff,
+                    options.latitude + latDiff,
+                    options.longitude - lngDiff,
+                    options.longitude + lngDiff
+                );
             }
 
             query += ' ORDER BY created_at DESC';
@@ -401,6 +441,15 @@ class Order {
             budget: this.budget,
             deadline: this.deadline,
             address: this.address,
+            street: this.street,
+            number: this.number,
+            complement: this.complement,
+            neighborhood: this.neighborhood,
+            city: this.city,
+            state: this.state,
+            zip_code: this.zip_code,
+            latitude: this.latitude,
+            longitude: this.longitude,
             status: this.status,
             client_id: this.client_id,
             provider_id: this.provider_id,
@@ -408,6 +457,11 @@ class Order {
             auction_started_at: this.auction_started_at,
             auction_ends_at: this.auction_ends_at,
             attachments: this.attachments,
+            scheduled_date: this.scheduled_date,
+            schedule_confirmed_by_client: this.schedule_confirmed_by_client,
+            schedule_confirmed_by_provider: this.schedule_confirmed_by_provider,
+            cancel_reason: this.cancel_reason,
+            cancelled_by: this.cancelled_by,
             created_at: this.created_at,
             updated_at: this.updated_at,
             proposals: this.proposals || [],

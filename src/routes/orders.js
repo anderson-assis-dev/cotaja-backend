@@ -74,5 +74,8 @@ router.put('/:id', (req, res, next) => {
 }, updateOrderValidation, orderController.update);
 router.delete('/:id', orderController.destroy);
 router.post('/:id/start-auction', orderController.startAuction);
+router.post('/:id/cancel', orderController.cancel);
+router.post('/:id/schedule', orderController.schedule);
+router.post('/:id/confirm-schedule', orderController.confirmSchedule);
 
 module.exports = router;

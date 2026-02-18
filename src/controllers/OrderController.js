@@ -4,9 +4,11 @@ const User = require('../models/User');
 const notificationService = require('../services/NotificationService');
 const fileUploadService = require('../services/FileUploadService');
 const emailService = require('../services/EmailService');
-const pushNotificationService = require('../services/PushNotificationService');
+const PushNotificationService = require('../services/PushNotificationService');
+const appleMapsService = require('../services/AppleMapsService');
 const nodemailer = require('nodemailer');
 const moment = require('moment');
+const { pool } = require('../config/database');
 
 class OrderController {
     async index(req, res) {
@@ -69,7 +71,65 @@ class OrderController {
                 });
             }
 
-            const { title, description, category, budget, deadline, address } = req.body;
+            const { title, description, category, budget, deadline, address, street, number, complement, neighborhood, city, state, zip_code, latitude, longitude } = req.body;
+
+            // Build full address from structured fields if not provided
+            let fullAddress = address;
+            if (!fullAddress && street) {
+                const parts = [street];
+                if (number) parts[0] += `, ${number}`;
+                if (complement) parts.push(complement);
+                if (neighborhood) parts.push(neighborhood);
+                if (city) parts.push(city);
+                if (state) parts.push(state);
+                if (zip_code) parts.push(zip_code);
+                fullAddress = parts.join(', ');
+            }
+
+            // Auto-geocode: if we have address but no coordinates, get them
+            let finalLat = latitude ? parseFloat(latitude) : null;
+            let finalLng = longitude ? parseFloat(longitude) : null;
+            let finalStreet = street || null;
+            let finalNumber = number || null;
+            let finalNeighborhood = neighborhood || null;
+            let finalCity = city || null;
+            let finalState = state || null;
+            let finalZipCode = zip_code || null;
+
+            try {
+                if (fullAddress && (!finalLat || !finalLng)) {
+                    // Forward geocode: address → coordinates
+                    console.log('🗺️ Forward geocoding endereço:', fullAddress);
+                    const geocoded = await appleMapsService.forwardGeocode(fullAddress);
+                    if (geocoded) {
+                        finalLat = geocoded.latitude;
+                        finalLng = geocoded.longitude;
+                        // Fill missing structured fields from geocoding
+                        if (!finalStreet && geocoded.street) finalStreet = geocoded.street;
+                        if (!finalCity && geocoded.city) finalCity = geocoded.city;
+                        if (!finalState && geocoded.state) finalState = geocoded.state;
+                        if (!finalZipCode && geocoded.zip_code) finalZipCode = geocoded.zip_code;
+                        if (!finalNeighborhood && geocoded.neighborhood) finalNeighborhood = geocoded.neighborhood;
+                        console.log('✅ Geocoding obtido:', { lat: finalLat, lng: finalLng });
+                    }
+                } else if (finalLat && finalLng && !fullAddress) {
+                    // Reverse geocode: coordinates → address
+                    console.log('🗺️ Reverse geocoding coordenadas:', finalLat, finalLng);
+                    const reversed = await appleMapsService.reverseGeocode(finalLat, finalLng);
+                    if (reversed) {
+                        fullAddress = reversed.formatted_address;
+                        if (!finalStreet) finalStreet = reversed.street;
+                        if (!finalNumber) finalNumber = reversed.number;
+                        if (!finalCity) finalCity = reversed.city;
+                        if (!finalState) finalState = reversed.state;
+                        if (!finalZipCode) finalZipCode = reversed.zip_code;
+                        if (!finalNeighborhood) finalNeighborhood = reversed.neighborhood;
+                        console.log('✅ Reverse geocoding obtido:', fullAddress);
+                    }
+                }
+            } catch (geocodeError) {
+                console.error('⚠️ Erro no geocoding (continuando sem coordenadas):', geocodeError.message);
+            }
 
             // Process attachments if any
             let attachments = null;
@@ -96,7 +156,16 @@ class OrderController {
                 category,
                 budget,
                 deadline,
-                address,
+                address: fullAddress,
+                street: finalStreet,
+                number: finalNumber,
+                complement: complement || null,
+                neighborhood: finalNeighborhood,
+                city: finalCity,
+                state: finalState,
+                zip_code: finalZipCode,
+                latitude: finalLat,
+                longitude: finalLng,
                 client_id: user.id,
                 attachments: attachments ? JSON.stringify(attachments) : null
             });
@@ -196,7 +265,7 @@ class OrderController {
                 });
             }
 
-            const allowedFields = ['title', 'description', 'category', 'budget', 'deadline', 'address', 'status'];
+            const allowedFields = ['title', 'description', 'category', 'budget', 'deadline', 'address', 'street', 'number', 'complement', 'neighborhood', 'city', 'state', 'zip_code', 'latitude', 'longitude', 'status'];
             const updateData = {};
 
             allowedFields.forEach(field => {
@@ -341,7 +410,8 @@ class OrderController {
                         .map(p => p.fcm_token);
 
                     if (providerTokens.length > 0) {
-                        await pushNotificationService.sendBulkNotifications(
+                        const pushSvc = new PushNotificationService();
+                        await pushSvc.sendBulkNotifications(
                             providerTokens,
                             'Pedido Excluído',
                             `O pedido "${order.title}" foi excluído pelo cliente`,
@@ -410,11 +480,15 @@ class OrderController {
             };
 
             // Debug log
-            console.log('📤 Enviando pedidos - First order proposals:', paginatedOrders[0]?.proposals?.length || 0);
-            const jsonStr = JSON.stringify(paginatedOrders[0]);
-            console.log('📤 First order JSON length:', jsonStr.length);
-            console.log('📤 JSON contains proposals?', jsonStr.includes('"proposals"'));
-            console.log('📤 Proposals in JSON:', jsonStr.substring(jsonStr.indexOf('"proposals"'), jsonStr.indexOf('"proposals"') + 200));
+            if (paginatedOrders.length > 0) {
+                console.log('📤 Enviando pedidos - First order proposals:', paginatedOrders[0]?.proposals?.length || 0);
+                const jsonStr = JSON.stringify(paginatedOrders[0]);
+                console.log('📤 First order JSON length:', jsonStr.length);
+                console.log('📤 JSON contains proposals?', jsonStr.includes('"proposals"'));
+                console.log('📤 Proposals in JSON:', jsonStr.substring(jsonStr.indexOf('"proposals"'), jsonStr.indexOf('"proposals"') + 200));
+            } else {
+                console.log('📤 Enviando pedidos - nenhum resultado');
+            }
 
             return res.json({
                 success: true,
@@ -593,6 +667,351 @@ class OrderController {
                 order_id: order.id,
                 error: error.message
             });
+        }
+    }
+
+    // Cancel an in-progress order (client or provider)
+    async cancel(req, res) {
+        try {
+            const { id } = req.params;
+            const user = req.user;
+            const { reason } = req.body;
+
+            if (!reason || !reason.trim()) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'É necessário informar o motivo do cancelamento'
+                });
+            }
+
+            const order = await Order.findById(id, true);
+            if (!order) {
+                return res.status(404).json({ success: false, message: 'Pedido não encontrado' });
+            }
+
+            // Check permissions — only client or assigned provider
+            if (order.client_id !== user.id && order.provider_id !== user.id) {
+                return res.status(403).json({ success: false, message: 'Acesso negado' });
+            }
+
+            // Can only cancel open or in_progress orders
+            if (order.status !== Order.STATUS_OPEN && order.status !== Order.STATUS_IN_PROGRESS) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Não é possível cancelar este pedido'
+                });
+            }
+
+            const connection = await pool.getConnection();
+            try {
+                await connection.beginTransaction();
+
+                await connection.execute(
+                    'UPDATE orders SET status = ?, cancel_reason = ?, cancelled_by = ?, updated_at = NOW() WHERE id = ?',
+                    [Order.STATUS_CANCELLED, reason.trim(), user.id, id]
+                );
+
+                // If there was an accepted proposal, update it too
+                if (order.accepted_proposal_id) {
+                    await connection.execute(
+                        'UPDATE proposals SET status = ?, updated_at = NOW() WHERE id = ?',
+                        ['cancelled', order.accepted_proposal_id]
+                    );
+                }
+
+                await connection.commit();
+            } catch (dbError) {
+                await connection.rollback();
+                throw dbError;
+            } finally {
+                connection.release();
+            }
+
+            // Determine who to notify (the other party)
+            const isClient = user.id === order.client_id;
+            const otherUserId = isClient ? order.provider_id : order.client_id;
+            const cancellerRole = isClient ? 'cliente' : 'prestador';
+
+            if (otherUserId) {
+                const otherUser = await User.findById(otherUserId);
+
+                if (otherUser) {
+                    // Push notification
+                    try {
+                        if (otherUser.fcm_token) {
+                            const pushSvc = new PushNotificationService();
+                            await pushSvc.sendAlert({
+                                registration_id: otherUser.fcm_token,
+                                device: otherUser.device_platform || 'ios',
+                                title: 'Pedido Cancelado',
+                                message: `O pedido "${order.title}" foi cancelado pelo ${cancellerRole}.`,
+                                sound: 'default'
+                            });
+                            console.log(`✅ Push de cancelamento enviado para ${otherUser.name}`);
+                        }
+                    } catch (pushError) {
+                        console.error('Erro ao enviar push de cancelamento:', pushError.message);
+                    }
+
+                    // Email notification
+                    try {
+                        await emailService.sendOrderCancelledNotification(order, otherUser, user, reason.trim());
+                        console.log(`📧 Email de cancelamento enviado para ${otherUser.email}`);
+                    } catch (emailError) {
+                        console.error('Erro ao enviar email de cancelamento:', emailError.message);
+                    }
+
+                    // DB notification
+                    try {
+                        const Notification = require('../models/Notification');
+                        await Notification.create({
+                            user_id: otherUserId,
+                            type: 'order_cancelled',
+                            title: 'Pedido cancelado',
+                            message: `O pedido "${order.title}" foi cancelado pelo ${cancellerRole}.`,
+                            data: {
+                                order_id: order.id,
+                                order_title: order.title,
+                                cancelled_by: user.id,
+                                cancel_reason: reason.trim()
+                            }
+                        });
+                    } catch (notifError) {
+                        console.error('Erro ao criar notificação de cancelamento:', notifError.message);
+                    }
+                }
+            }
+
+            return res.json({
+                success: true,
+                message: 'Pedido cancelado com sucesso'
+            });
+        } catch (error) {
+            console.error('Erro ao cancelar pedido:', error);
+            return res.status(500).json({ success: false, message: 'Erro ao cancelar pedido' });
+        }
+    }
+
+    // Schedule a date/time for the service
+    async schedule(req, res) {
+        try {
+            const { id } = req.params;
+            const user = req.user;
+            const { scheduled_date } = req.body;
+
+            if (!scheduled_date) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'É necessário informar a data e horário'
+                });
+            }
+
+            const scheduledMoment = moment(scheduled_date);
+            if (!scheduledMoment.isValid() || scheduledMoment.isBefore(moment())) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'A data deve ser válida e futura'
+                });
+            }
+
+            const order = await Order.findById(id, true);
+            if (!order) {
+                return res.status(404).json({ success: false, message: 'Pedido não encontrado' });
+            }
+
+            if (order.client_id !== user.id && order.provider_id !== user.id) {
+                return res.status(403).json({ success: false, message: 'Acesso negado' });
+            }
+
+            if (order.status !== Order.STATUS_IN_PROGRESS) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Agendamento disponível apenas para pedidos em andamento'
+                });
+            }
+
+            const isClient = user.id === order.client_id;
+
+            const connection = await pool.getConnection();
+            try {
+                await connection.execute(
+                    `UPDATE orders SET
+                        scheduled_date = ?,
+                        schedule_confirmed_by_client = ?,
+                        schedule_confirmed_by_provider = ?,
+                        schedule_reminder_1d_sent = 0,
+                        schedule_reminder_1h_sent = 0,
+                        updated_at = NOW()
+                     WHERE id = ?`,
+                    [
+                        scheduledMoment.format('YYYY-MM-DD HH:mm:ss'),
+                        isClient ? 1 : 0,
+                        isClient ? 0 : 1,
+                        id
+                    ]
+                );
+            } finally {
+                connection.release();
+            }
+
+            // Notify the other party
+            const otherUserId = isClient ? order.provider_id : order.client_id;
+            if (otherUserId) {
+                const otherUser = await User.findById(otherUserId);
+                const formattedDate = scheduledMoment.format('DD/MM/YYYY [às] HH:mm');
+
+                if (otherUser) {
+                    // Push
+                    try {
+                        if (otherUser.fcm_token) {
+                            const pushSvc = new PushNotificationService();
+                            await pushSvc.sendAlert({
+                                registration_id: otherUser.fcm_token,
+                                device: otherUser.device_platform || 'ios',
+                                title: 'Agendamento Proposto',
+                                message: `${user.name} propôs agendar "${order.title}" para ${formattedDate}. Confirme o agendamento.`,
+                                sound: 'default'
+                            });
+                        }
+                    } catch (pushError) {
+                        console.error('Erro ao enviar push de agendamento:', pushError.message);
+                    }
+
+                    // DB notification
+                    try {
+                        const Notification = require('../models/Notification');
+                        await Notification.create({
+                            user_id: otherUserId,
+                            type: 'schedule_proposed',
+                            title: 'Agendamento proposto',
+                            message: `${user.name} propôs agendar "${order.title}" para ${formattedDate}.`,
+                            data: {
+                                order_id: order.id,
+                                scheduled_date: scheduled_date,
+                                proposed_by: user.id
+                            }
+                        });
+                    } catch (notifError) {
+                        console.error('Erro ao criar notificação de agendamento:', notifError.message);
+                    }
+                }
+            }
+
+            const updatedOrder = await Order.findById(id, true);
+
+            return res.json({
+                success: true,
+                message: 'Agendamento proposto com sucesso',
+                data: updatedOrder
+            });
+        } catch (error) {
+            console.error('Erro ao agendar:', error);
+            return res.status(500).json({ success: false, message: 'Erro ao propor agendamento' });
+        }
+    }
+
+    // Confirm a proposed schedule
+    async confirmSchedule(req, res) {
+        try {
+            const { id } = req.params;
+            const user = req.user;
+
+            const order = await Order.findById(id, true);
+            if (!order) {
+                return res.status(404).json({ success: false, message: 'Pedido não encontrado' });
+            }
+
+            if (order.client_id !== user.id && order.provider_id !== user.id) {
+                return res.status(403).json({ success: false, message: 'Acesso negado' });
+            }
+
+            if (!order.scheduled_date) {
+                return res.status(400).json({ success: false, message: 'Nenhum agendamento proposto' });
+            }
+
+            const isClient = user.id === order.client_id;
+            const field = isClient ? 'schedule_confirmed_by_client' : 'schedule_confirmed_by_provider';
+
+            const connection = await pool.getConnection();
+            try {
+                await connection.execute(
+                    `UPDATE orders SET ${field} = 1, updated_at = NOW() WHERE id = ?`,
+                    [id]
+                );
+            } finally {
+                connection.release();
+            }
+
+            // Re-read to check if both confirmed
+            const refreshedOrder = await Order.findById(id, true);
+            const bothConfirmed = refreshedOrder.schedule_confirmed_by_client && refreshedOrder.schedule_confirmed_by_provider;
+
+            // Notify the other party
+            const otherUserId = isClient ? order.provider_id : order.client_id;
+            const formattedDate = moment(order.scheduled_date).format('DD/MM/YYYY [às] HH:mm');
+
+            if (otherUserId) {
+                const otherUser = await User.findById(otherUserId);
+                if (otherUser) {
+                    const pushTitle = bothConfirmed ? 'Agendamento Confirmado' : 'Agendamento Confirmado';
+                    const pushMessage = bothConfirmed
+                        ? `O serviço "${order.title}" foi confirmado por ambas as partes para ${formattedDate}!`
+                        : `${user.name} confirmou o agendamento de "${order.title}" para ${formattedDate}.`;
+
+                    try {
+                        if (otherUser.fcm_token) {
+                            const pushSvc = new PushNotificationService();
+                            await pushSvc.sendAlert({
+                                registration_id: otherUser.fcm_token,
+                                device: otherUser.device_platform || 'ios',
+                                title: pushTitle,
+                                message: pushMessage,
+                                sound: 'default'
+                            });
+                        }
+                    } catch (pushError) {
+                        console.error('Erro ao enviar push de confirmação:', pushError.message);
+                    }
+
+                    // DB notification
+                    try {
+                        const Notification = require('../models/Notification');
+                        await Notification.create({
+                            user_id: otherUserId,
+                            type: 'schedule_confirmed',
+                            title: pushTitle,
+                            message: pushMessage,
+                            data: {
+                                order_id: order.id,
+                                scheduled_date: order.scheduled_date,
+                                both_confirmed: bothConfirmed
+                            }
+                        });
+                    } catch (notifError) {
+                        console.error('Erro ao criar notificação de confirmação:', notifError.message);
+                    }
+
+                    // Send email to both if both confirmed
+                    if (bothConfirmed) {
+                        try {
+                            const client = await User.findById(order.client_id);
+                            const provider = await User.findById(order.provider_id);
+                            await emailService.sendScheduleConfirmedNotification(order, client, provider, formattedDate);
+                        } catch (emailError) {
+                            console.error('Erro ao enviar email de confirmação:', emailError.message);
+                        }
+                    }
+                }
+            }
+
+            return res.json({
+                success: true,
+                message: bothConfirmed ? 'Agendamento confirmado por ambas as partes!' : 'Agendamento confirmado',
+                data: refreshedOrder
+            });
+        } catch (error) {
+            console.error('Erro ao confirmar agendamento:', error);
+            return res.status(500).json({ success: false, message: 'Erro ao confirmar agendamento' });
         }
     }
 }

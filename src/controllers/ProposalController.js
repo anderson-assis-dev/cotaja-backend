@@ -337,6 +337,20 @@ class ProposalController {
                     console.error('Erro ao enviar notificação de proposta aceita:', error);
                 }
 
+                // Send email to provider about accepted proposal
+                try {
+                    const provider = await User.findById(updatedProposal.provider_id);
+                    if (provider) {
+                        await emailService.sendProposalAcceptedToProvider(
+                            updatedProposal.order || proposal.order,
+                            updatedProposal,
+                            provider
+                        );
+                    }
+                } catch (error) {
+                    console.error('Erro ao enviar email de proposta aceita:', error);
+                }
+
                 // Notify providers about rejected proposals
                 try {
                     const rejectedProposals = await Proposal.findByOrder(proposal.order_id, {

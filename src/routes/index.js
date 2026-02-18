@@ -7,6 +7,8 @@ const orderRoutes = require('./orders');
 const proposalRoutes = require('./proposals');
 const notificationRoutes = require('./notifications');
 const serviceRoutes = require('./services');
+const geocodingRoutes = require('./geocoding');
+const chatRoutes = require('./chat');
 
 // API routes
 router.use('/auth', authRoutes);
@@ -14,6 +16,8 @@ router.use('/orders', orderRoutes);
 router.use('/proposals', proposalRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/services', serviceRoutes);
+router.use('/geocoding', geocodingRoutes);
+router.use('/chat', chatRoutes);
 
 // Health check endpoint
 router.get('/health', (req, res) => {

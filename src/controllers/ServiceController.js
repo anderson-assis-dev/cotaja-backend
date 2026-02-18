@@ -80,7 +80,7 @@ class ServiceController {
                 return sendPushNotification({
                     registration_id: provider.token,
                     device: provider.platform,
-                    title: '🔔 Novo Pedido de Serviço!',
+                    title: 'Novo Pedido de Serviço!',
                     message: `${clientName} solicitou: ${service.title}`,
                     sound: 'default',
                     production: process.env.NODE_ENV === 'production'

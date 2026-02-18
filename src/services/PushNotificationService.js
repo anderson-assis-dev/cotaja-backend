@@ -65,13 +65,13 @@ class PushNotificationService {
                 throw new Error('Missing required fields');
             }
 
-            const { registration_id, device, title, message, sound, image_url, production } = data;
+            const { registration_id, device, title, message, sound, image_url, production, extra_data } = data;
 
             switch (device.toLowerCase()) {
                 case 'ios':
-                    return await this.sendIOS(registration_id, title, message, sound, image_url, production);
+                    return await this.sendIOS(registration_id, title, message, sound, image_url, production, extra_data);
                 case 'android':
-                    return await this.sendAndroid(registration_id, title, message, image_url);
+                    return await this.sendAndroid(registration_id, title, message, image_url, extra_data);
                 default:
                     throw new Error('Invalid device type. Must be "ios" or "android"');
             }
@@ -95,7 +95,7 @@ class PushNotificationService {
     /**
      * Send Android push notification via FCM
      */
-    async sendAndroid(registrationId, title, message, imageUrl = null) {
+    async sendAndroid(registrationId, title, message, imageUrl = null, extraData = null) {
         try {
             const accessToken = await this.getAccessToken();
             const url = `https://fcm.googleapis.com/v1/projects/${this.projectId}/messages:send`;
@@ -121,6 +121,16 @@ class PushNotificationService {
                 }
             };
 
+            // Add data payload for navigation and foreground handling
+            if (extraData && typeof extraData === 'object') {
+                // FCM data values must be strings
+                const stringData = {};
+                for (const [key, value] of Object.entries(extraData)) {
+                    stringData[key] = String(value);
+                }
+                payload.message.data = stringData;
+            }
+
             const response = await this.makeHttpRequest(url, {
                 method: 'POST',
                 headers: {
@@ -143,12 +153,12 @@ class PushNotificationService {
      * Send iOS push notification via APNs
      * @param {boolean} production - Use production certificate (default: false for sandbox)
      */
-    async sendIOS(registrationId, title, message, sound = 'default', imageUrl = null, production = false) {
+    async sendIOS(registrationId, title, message, sound = 'default', imageUrl = null, production = false, extraData = null) {
         try {
             // Check if using FCM for iOS (recommended)
             if (process.env.USE_FCM_FOR_IOS === 'true') {
                 console.log('Using FCM for iOS notification');
-                return await this.sendAndroid(registrationId, title, message, imageUrl);
+                return await this.sendAndroid(registrationId, title, message, imageUrl, extraData);
             }
 
             // Check if certificate and key exist
@@ -160,7 +170,7 @@ class PushNotificationService {
             }
 
             // Try sending via APNs (sandbox first, then production if it fails)
-            const result = await this._sendIOSWithFallback(registrationId, title, message, sound, imageUrl, production);
+            const result = await this._sendIOSWithFallback(registrationId, title, message, sound, imageUrl, production, extraData);
             return result;
 
         } catch (error) {
@@ -173,7 +183,7 @@ class PushNotificationService {
     /**
      * Internal method to send iOS notification with automatic fallback from sandbox to production
      */
-    async _sendIOSWithFallback(registrationId, title, message, sound, imageUrl, startWithProduction = false) {
+    async _sendIOSWithFallback(registrationId, title, message, sound, imageUrl, startWithProduction = false, extraData = null) {
         const environments = startWithProduction ? ['production', 'sandbox'] : ['sandbox', 'production'];
 
         for (let i = 0; i < environments.length; i++) {
@@ -205,6 +215,11 @@ class PushNotificationService {
                 // Add image if provided
                 if (imageUrl) {
                     notification.payload = { image: imageUrl };
+                }
+
+                // Add extra data for navigation
+                if (extraData && typeof extraData === 'object') {
+                    notification.payload = { ...(notification.payload || {}), ...extraData };
                 }
 
                 // Send notification

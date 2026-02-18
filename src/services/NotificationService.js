@@ -108,7 +108,7 @@ class NotificationService {
                 if (client && client.fcm_token) {
                     console.log(`📱 Enviando push notification para cliente ${client.name} (${client.email})`);
 
-                    const pushTitle = 'Nova proposta recebida! 🎉';
+                    const pushTitle = 'Nova proposta recebida!';
                     const pushMessage = `${proposal.provider.name} enviou uma proposta de R$ ${parseFloat(proposal.price).toFixed(2).replace('.', ',')} para "${proposal.order.title}"`;
 
                     await this.pushService.sendAlert({
@@ -144,7 +144,8 @@ class NotificationService {
                 throw new Error('Dados da proposta incompletos');
             }
 
-            return await this.createNotification({
+            // Create database notification
+            const notification = await this.createNotification({
                 user_id: proposal.provider_id,
                 type: Notification.TYPE_PROPOSAL_ACCEPTED,
                 title: 'Proposta aceita!',
@@ -156,6 +157,34 @@ class NotificationService {
                     proposal_price: proposal.price
                 }
             });
+
+            // Send push notification to the provider
+            try {
+                const provider = await User.findById(proposal.provider_id);
+                if (provider && provider.fcm_token) {
+                    console.log(`📱 Enviando push notification de proposta aceita para ${provider.name} (${provider.email})`);
+
+                    const pushTitle = 'Proposta aceita!';
+                    const pushMessage = `Sua proposta de R$ ${parseFloat(proposal.price).toFixed(2).replace('.', ',')} para "${proposal.order.title}" foi aceita pelo cliente!`;
+
+                    await this.pushService.sendAlert({
+                        registration_id: provider.fcm_token,
+                        device: provider.device_platform || 'ios',
+                        title: pushTitle,
+                        message: pushMessage,
+                        sound: 'default'
+                    });
+
+                    console.log(`✅ Push notification de proposta aceita enviada para ${provider.name}`);
+                } else {
+                    console.log(`⚠️ Prestador ${proposal.provider_id} não possui FCM token para push notification`);
+                }
+            } catch (pushError) {
+                console.error('❌ Erro ao enviar push notification de proposta aceita:', pushError.message);
+                // Não lançar erro - a notificação no banco já foi criada
+            }
+
+            return notification;
         } catch (error) {
             console.error('Erro ao notificar prestador sobre proposta aceita:', error);
             throw error;

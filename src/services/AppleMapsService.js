@@ -25,19 +25,9 @@ class AppleMapsService {
 
         const payload = {
             iss: appleMapsConfig.teamId,
+            sub: appleMapsConfig.mapsId,
             iat: now,
             exp: now + appleMapsConfig.tokenExpirySeconds,
-            origin: '*', // Allow from any origin (WebView)
-        };
-
-        const header = {
-            algorithm: 'ES256',
-            keyid: appleMapsConfig.keyId,
-            header: {
-                alg: 'ES256',
-                kid: appleMapsConfig.keyId,
-                typ: 'JWT',
-            },
         };
 
         this._token = jwt.sign(payload, privateKey, {
@@ -74,6 +64,7 @@ class AppleMapsService {
 
             if (!response.ok) {
                 const errorText = await response.text();
+                console.error('❌ Apple Maps token response:', response.status, errorText);
                 throw new Error(`Apple Maps token error (${response.status}): ${errorText}`);
             }
 
@@ -203,6 +194,59 @@ class AppleMapsService {
             return data.results.map(result => this._parseAppleAddress(result)).filter(Boolean);
         } catch (error) {
             console.error('❌ Erro na busca de endereço:', error.message);
+            throw error;
+        }
+    }
+
+    /**
+     * Consultar CEP via ViaCEP (API gratuita brasileira)
+     * @param {string} cep - CEP no formato XXXXX-XXX ou XXXXXXXX
+     * @returns {Object} Endereço estruturado
+     */
+    async lookupCep(cep) {
+        try {
+            const cleanCep = cep.replace(/[^0-9]/g, '');
+
+            if (cleanCep.length !== 8) {
+                throw new Error('CEP deve ter 8 dígitos');
+            }
+
+            const url = `https://viacep.com.br/ws/${cleanCep}/json/`;
+
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error(`ViaCEP error (${response.status})`);
+            }
+
+            const data = await response.json();
+
+            if (data.erro) {
+                return null;
+            }
+
+            console.log('📮 CEP encontrado:', cleanCep, '->', data.logradouro, data.localidade);
+
+            return {
+                street: data.logradouro || '',
+                number: '',
+                complement: data.complemento || '',
+                neighborhood: data.bairro || '',
+                city: data.localidade || '',
+                state: data.uf || '',
+                zip_code: `${cleanCep.slice(0, 5)}-${cleanCep.slice(5)}`,
+                latitude: null,
+                longitude: null,
+                formatted_address: `${data.logradouro || ''}, ${data.bairro || ''}, ${data.localidade || ''} - ${data.uf || ''}, ${cleanCep.slice(0, 5)}-${cleanCep.slice(5)}`,
+                name: data.logradouro || '',
+            };
+        } catch (error) {
+            console.error('❌ Erro na consulta de CEP:', error.message);
             throw error;
         }
     }

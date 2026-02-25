@@ -23,7 +23,7 @@ class GeocodingController {
 
     /**
      * GET /api/geocoding/reverse?lat=XX&lng=XX
-     * Reverse geocode: coordinates → address
+     * Reverse geocode: coordenadas → endereço
      */
     async reverseGeocode(req, res) {
         try {
@@ -70,7 +70,7 @@ class GeocodingController {
 
     /**
      * GET /api/geocoding/forward?address=XXX
-     * Forward geocode: address text → coordinates
+     * Forward geocode: endereço → coordenadas
      */
     async forwardGeocode(req, res) {
         try {
@@ -107,7 +107,7 @@ class GeocodingController {
 
     /**
      * GET /api/geocoding/search?q=XXX&lat=XX&lng=XX
-     * Search for addresses with optional location bias
+     * Buscar endereços (autocomplete)
      */
     async search(req, res) {
         try {
@@ -134,6 +134,52 @@ class GeocodingController {
             return res.status(500).json({
                 success: false,
                 message: 'Erro ao buscar endereço'
+            });
+        }
+    }
+
+    /**
+     * GET /api/geocoding/cep/:cep
+     * Consultar CEP via ViaCEP
+     */
+    async lookupCep(req, res) {
+        try {
+            const { cep } = req.params;
+
+            if (!cep) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'CEP é obrigatório'
+                });
+            }
+
+            const cleanCep = cep.replace(/[^0-9]/g, '');
+
+            if (cleanCep.length !== 8) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'CEP deve ter 8 dígitos'
+                });
+            }
+
+            const address = await appleMapsService.lookupCep(cleanCep);
+
+            if (!address) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'CEP não encontrado'
+                });
+            }
+
+            return res.json({
+                success: true,
+                data: address
+            });
+        } catch (error) {
+            console.error('Erro na consulta de CEP:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Erro ao consultar CEP'
             });
         }
     }

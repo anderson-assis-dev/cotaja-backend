@@ -9,13 +9,16 @@ router.use(authenticateToken);
 // Get MapKit JS token for frontend WebView
 router.get('/token', geocodingController.getMapKitToken);
 
-// Reverse geocode: lat/lng → address
+// Reverse geocode: lat/lng → endereço
 router.get('/reverse', geocodingController.reverseGeocode);
 
-// Forward geocode: address → lat/lng
+// Forward geocode: endereço → lat/lng
 router.get('/forward', geocodingController.forwardGeocode);
 
-// Search addresses
+// Buscar endereços (autocomplete)
 router.get('/search', geocodingController.search);
+
+// Consultar CEP → endereço (ViaCEP)
+router.get('/cep/:cep', geocodingController.lookupCep);
 
 module.exports = router;

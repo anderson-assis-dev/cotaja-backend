@@ -142,17 +142,19 @@ class ProposalController {
                 console.error('Erro ao enviar notificação:', error);
             }
 
-            // Send email to client using EmailService
-            try {
-                const client = await User.findById(order.client_id);
-                const provider = await User.findById(user.id);
+            // Send email to client using EmailService (fire-and-forget, não bloqueia a response)
+            (async () => {
+                try {
+                    const client = await User.findById(order.client_id);
+                    const provider = await User.findById(user.id);
 
-                if (client && provider) {
-                    await emailService.sendNewProposalToClient(order, proposal, client, provider);
+                    if (client && provider) {
+                        await emailService.sendNewProposalToClient(order, proposal, client, provider);
+                    }
+                } catch (error) {
+                    console.error('❌ Erro ao enviar e-mail de proposta (background):', error.message);
                 }
-            } catch (error) {
-                console.error('Erro ao enviar e-mail:', error);
-            }
+            })();
 
             return res.status(201).json({
                 success: true,
@@ -337,19 +339,21 @@ class ProposalController {
                     console.error('Erro ao enviar notificação de proposta aceita:', error);
                 }
 
-                // Send email to provider about accepted proposal
-                try {
-                    const provider = await User.findById(updatedProposal.provider_id);
-                    if (provider) {
-                        await emailService.sendProposalAcceptedToProvider(
-                            updatedProposal.order || proposal.order,
-                            updatedProposal,
-                            provider
-                        );
+                // Send email to provider about accepted proposal (fire-and-forget, não bloqueia a response)
+                (async () => {
+                    try {
+                        const provider = await User.findById(updatedProposal.provider_id);
+                        if (provider) {
+                            await emailService.sendProposalAcceptedToProvider(
+                                updatedProposal.order || proposal.order,
+                                updatedProposal,
+                                provider
+                            );
+                        }
+                    } catch (error) {
+                        console.error('❌ Erro ao enviar email de proposta aceita (background):', error.message);
                     }
-                } catch (error) {
-                    console.error('Erro ao enviar email de proposta aceita:', error);
-                }
+                })();
 
                 // Notify providers about rejected proposals
                 try {

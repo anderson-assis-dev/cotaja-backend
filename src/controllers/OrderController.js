@@ -182,12 +182,11 @@ class OrderController {
                 console.error('Erro ao enviar notificações:', error);
             }
 
-            // Send emails to providers
-            try {
-                await this.sendNewOrderEmails(order);
-            } catch (error) {
-                console.error('Erro ao enviar e-mails:', error);
-            }
+            // Send emails to providers (fire-and-forget, não bloqueia a response)
+            const orderCtrl = module.exports;
+            orderCtrl.sendNewOrderEmails(order).catch(error => {
+                console.error('❌ Erro ao enviar e-mails (background):', error.message);
+            });
 
             return res.status(201).json({
                 success: true,
@@ -426,12 +425,10 @@ class OrderController {
                     console.error('Erro ao enviar push notifications:', error);
                 }
 
-                // Send emails
-                try {
-                    await emailService.sendOrderDeletedToProviders(order, providersWithProposals);
-                } catch (error) {
-                    console.error('Erro ao enviar emails:', error);
-                }
+                // Send emails (fire-and-forget, não bloqueia a response)
+                emailService.sendOrderDeletedToProviders(order, providersWithProposals).catch(error => {
+                    console.error('❌ Erro ao enviar emails de exclusão (background):', error.message);
+                });
             }
 
             return res.json({
@@ -622,14 +619,21 @@ class OrderController {
             const providers = await User.findProvidersByCategory(order.category);
 
             // Create transporter
-            const transporter = nodemailer.createTransporter({
-                host: process.env.MAIL_HOST,
-                port: process.env.MAIL_PORT,
-                secure: false,
+            const mailPort = parseInt(process.env.MAIL_PORT) || 465;
+            const transporter = nodemailer.createTransport({
+                host: process.env.MAIL_HOST || 'smtp.gmail.com',
+                port: mailPort,
+                secure: mailPort === 465,
                 auth: {
                     user: process.env.MAIL_USERNAME,
                     pass: process.env.MAIL_PASSWORD
-                }
+                },
+                tls: {
+                    rejectUnauthorized: false
+                },
+                connectionTimeout: 10000,
+                greetingTimeout: 10000,
+                socketTimeout: 15000
             });
 
             for (const provider of providers) {
@@ -753,13 +757,10 @@ class OrderController {
                         console.error('Erro ao enviar push de cancelamento:', pushError.message);
                     }
 
-                    // Email notification
-                    try {
-                        await emailService.sendOrderCancelledNotification(order, otherUser, user, reason.trim());
-                        console.log(`📧 Email de cancelamento enviado para ${otherUser.email}`);
-                    } catch (emailError) {
-                        console.error('Erro ao enviar email de cancelamento:', emailError.message);
-                    }
+                    // Email notification (fire-and-forget, não bloqueia a response)
+                    emailService.sendOrderCancelledNotification(order, otherUser, user, reason.trim())
+                        .then(() => console.log(`📧 Email de cancelamento enviado para ${otherUser.email}`))
+                        .catch(emailError => console.error('❌ Erro ao enviar email de cancelamento (background):', emailError.message));
 
                     // DB notification
                     try {
@@ -991,15 +992,17 @@ class OrderController {
                         console.error('Erro ao criar notificação de confirmação:', notifError.message);
                     }
 
-                    // Send email to both if both confirmed
+                    // Send email to both if both confirmed (fire-and-forget, não bloqueia a response)
                     if (bothConfirmed) {
-                        try {
-                            const client = await User.findById(order.client_id);
-                            const provider = await User.findById(order.provider_id);
-                            await emailService.sendScheduleConfirmedNotification(order, client, provider, formattedDate);
-                        } catch (emailError) {
-                            console.error('Erro ao enviar email de confirmação:', emailError.message);
-                        }
+                        (async () => {
+                            try {
+                                const client = await User.findById(order.client_id);
+                                const provider = await User.findById(order.provider_id);
+                                await emailService.sendScheduleConfirmedNotification(order, client, provider, formattedDate);
+                            } catch (emailError) {
+                                console.error('❌ Erro ao enviar email de confirmação (background):', emailError.message);
+                            }
+                        })();
                     }
                 }
             }

@@ -3,18 +3,21 @@ const path = require('path');
 
 class EmailService {
     constructor() {
+        const mailPort = parseInt(process.env.MAIL_PORT) || 465;
         this.transporter = nodemailer.createTransport({
-            service: 'gmail',
             host: process.env.MAIL_HOST || 'smtp.gmail.com',
-            port: process.env.MAIL_PORT || 587,
-            secure: false,
+            port: mailPort,
+            secure: mailPort === 465,
             auth: {
                 user: process.env.MAIL_USERNAME || process.env.MAIL_USER,
                 pass: process.env.MAIL_PASSWORD || process.env.MAIL_PASS
             },
             tls: {
                 rejectUnauthorized: false
-            }
+            },
+            connectionTimeout: 10000,
+            greetingTimeout: 10000,
+            socketTimeout: 15000
         });
     }
 

@@ -7,23 +7,26 @@ const path = require('path');
 async function sendWelcomeEmail(user, activationToken) {
     try {
         // Create transporter for Gmail
+        const mailPort = parseInt(process.env.MAIL_PORT) || 465;
         const transporter = nodemailer.createTransport({
-            service: 'gmail',
-            host: process.env.MAIL_HOST,
-            port: process.env.MAIL_PORT,
-            secure: false, // true for 465, false for other ports
+            host: process.env.MAIL_HOST || 'smtp.gmail.com',
+            port: mailPort,
+            secure: mailPort === 465,
             auth: {
                 user: process.env.MAIL_USERNAME,
                 pass: process.env.MAIL_PASSWORD
             },
             tls: {
                 rejectUnauthorized: false
-            }
+            },
+            connectionTimeout: 10000,
+            greetingTimeout: 10000,
+            socketTimeout: 15000
         });
 
         console.log('📧 Enviando email de boas-vindas para:', user.email);
 
-        const serverUrl = process.env.SERVER_URL || 'http://192.99.4.143:53000';
+        const serverUrl = process.env.SERVER_URL || 'http://159.195.32.169:53000';
         const activationLink = `${serverUrl}/api/auth/activate/${activationToken}`;
 
         // Send mail with embedded image
@@ -214,12 +217,10 @@ class AuthController {
                 console.log('✅ FCM token salvo no registro:', fcm_token.substring(0, 20) + '...');
             }
 
-            // Send welcome email with activation link
-            try {
-                await sendWelcomeEmail(user, user.activation_token);
-            } catch (error) {
-                console.error('Erro ao enviar e-mail de boas-vindas:', error.message);
-            }
+            // Send welcome email with activation link (fire-and-forget, não bloqueia a response)
+            sendWelcomeEmail(user, user.activation_token).catch(error => {
+                console.error('❌ Erro ao enviar e-mail de boas-vindas (background):', error.message);
+            });
 
             return res.status(201).json({
                 success: true,

@@ -24,5 +24,20 @@ const [rows]=await connection.execute('SELECT * FROM provider_ratings WHERE prov
 return rows;
 }finally{connection.release();}
 }
+static async getStatsForProviders(providerIds){
+await ProviderRating.ensureTable();
+const ids=Array.isArray(providerIds)?providerIds.map(id=>String(id)).filter(Boolean):[];
+if(ids.length===0)return new Map();
+const connection=await pool.getConnection();
+try{
+const placeholders=ids.map(()=>'?').join(',');
+const [rows]=await connection.execute(`SELECT provider_id,COUNT(*) ratings_count,AVG(rating) avg_rating FROM provider_ratings WHERE provider_id IN (${placeholders}) GROUP BY provider_id`,ids);
+const map=new Map();
+for(const r of rows){
+map.set(String(r.provider_id),{ratings_count:Number(r.ratings_count)||0,avg_rating:r.avg_rating!==null?Number(r.avg_rating):0});
+}
+return map;
+}finally{connection.release();}
+}
 }
 module.exports=ProviderRating;

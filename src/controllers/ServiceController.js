@@ -1,6 +1,7 @@
 const Service = require('../models/Service');
 const User = require('../models/User');
 const { sendPushNotification } = require('../middlewares/pushNotification');
+const ProviderRating=require('../models/ProviderRating');
 
 class ServiceController {
     constructor() {
@@ -205,7 +206,22 @@ class ServiceController {
             const { category, provider_id, search } = req.query;
             const providers = await User.listProvidersPublic({ search: search || null });
             const filteredProviders = provider_id ? providers.filter(p => String(p.id) === String(provider_id)) : providers;
-            const data = filteredProviders.map(p => ({
+            const statsMap=await ProviderRating.getStatsForProviders(filteredProviders.map(p=>p.id));
+            const enrichedProviders=filteredProviders.map(p=>{
+                const stats=statsMap.get(String(p.id))||{ratings_count:0,avg_rating:0};
+                return {...p,ratings_count:stats.ratings_count,avg_rating:stats.avg_rating};
+            }).sort((a,b)=>{
+                const ac=Number(a.ratings_count)||0;
+                const bc=Number(b.ratings_count)||0;
+                if(ac===0&&bc>0)return 1;
+                if(bc===0&&ac>0)return -1;
+                if(bc!==ac)return bc-ac;
+                const ar=Number(a.avg_rating)||0;
+                const br=Number(b.avg_rating)||0;
+                if(br!==ar)return br-ar;
+                return String(a.name||'').localeCompare(String(b.name||''));
+            });
+            const data = enrichedProviders.map(p => ({
                 id: null,
                 title: null,
                 description: null,

@@ -3,6 +3,15 @@ const User = require('../models/User');
 const { sendPushNotification } = require('../middlewares/pushNotification');
 
 class ServiceController {
+    constructor() {
+        this.create = this.create.bind(this);
+        this.update = this.update.bind(this);
+        this.index = this.index.bind(this);
+        this.myServices = this.myServices.bind(this);
+        this.show = this.show.bind(this);
+        this.delete = this.delete.bind(this);
+    }
+
     async create(req, res) {
         try {
             const { title, description, price, category, status, images } = req.body;

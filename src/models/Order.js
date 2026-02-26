@@ -207,9 +207,13 @@ class Order {
             if (options.cep) {
                 const cep = options.cep.replace(/[^0-9]/g, '');
                 if (cep.length >= 5) {
-                    const cepPrefix = cep.substring(0, 5);
-                    query += ' AND (zip_code LIKE ? OR address LIKE ? OR address LIKE ?)';
-                    params.push(`${cepPrefix}%`, `%${cep}%`, `%${cepPrefix}%`);
+                    // Busca por intervalo numérico: converte CEP em número
+                    // e busca demandas com CEP dentro de ±3.000.000 (mesma região/estado)
+                    const cepNum = parseInt(cep.padEnd(8, '0'), 10);
+                    const range = 3000000;
+                    query += ' AND zip_code IS NOT NULL AND zip_code != \'\''
+                        + ' AND CAST(REPLACE(zip_code, \'-\', \'\') AS UNSIGNED) BETWEEN ? AND ?';
+                    params.push(cepNum - range, cepNum + range);
                 }
             }
 

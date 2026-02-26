@@ -115,6 +115,58 @@ class Order {
         }
     }
 
+    /**
+     * Batch load relations for multiple orders in just 2 queries
+     * instead of 3N sequential queries (N = number of orders)
+     */
+    static async batchLoadRelations(orders, connection) {
+        if (!orders.length) return;
+
+        const orderIds = orders.map(o => o.id);
+        const placeholders = orderIds.map(() => '?').join(',');
+
+        // 1) Batch load all proposals + provider info for all orders
+        const [proposalRows] = await connection.execute(
+            `SELECT p.*, u.name as provider_name, u.email as provider_email, u.avatar_base64 as provider_avatar_base64
+             FROM proposals p
+             LEFT JOIN users u ON p.provider_id = u.id
+             WHERE p.order_id IN (${placeholders})`,
+            orderIds
+        );
+
+        const proposalsByOrder = {};
+        for (const p of proposalRows) {
+            if (!proposalsByOrder[p.order_id]) proposalsByOrder[p.order_id] = [];
+            proposalsByOrder[p.order_id].push(p);
+        }
+
+        // 2) Batch load unique users (clients + providers)
+        const userIds = new Set();
+        for (const order of orders) {
+            if (order.client_id) userIds.add(order.client_id);
+            if (order.provider_id) userIds.add(order.provider_id);
+        }
+
+        const usersMap = {};
+        if (userIds.size > 0) {
+            const userPlaceholders = [...userIds].map(() => '?').join(',');
+            const [userRows] = await connection.execute(
+                `SELECT id, name, email, phone, profile_type, avatar_base64 FROM users WHERE id IN (${userPlaceholders})`,
+                [...userIds]
+            );
+            for (const u of userRows) {
+                usersMap[u.id] = u;
+            }
+        }
+
+        // Assign to each order
+        for (const order of orders) {
+            order.proposals = proposalsByOrder[order.id] || [];
+            order.client = order.client_id ? (usersMap[order.client_id] || null) : null;
+            order.provider = order.provider_id ? (usersMap[order.provider_id] || null) : null;
+        }
+    }
+
     static async findByClient(clientId, options = {}) {
         const connection = await pool.getConnection();
         try {
@@ -142,10 +194,8 @@ class Order {
 
             const orders = rows.map(row => new Order(row));
 
-            if (options.withRelations) {
-                for (const order of orders) {
-                    await order.loadRelations(connection);
-                }
+            if (options.withRelations && orders.length > 0) {
+                await Order.batchLoadRelations(orders, connection);
             }
 
             return orders;
@@ -181,10 +231,8 @@ class Order {
 
             const orders = rows.map(row => new Order(row));
 
-            if (options.withRelations) {
-                for (const order of orders) {
-                    await order.loadRelations(connection);
-                }
+            if (options.withRelations && orders.length > 0) {
+                await Order.batchLoadRelations(orders, connection);
             }
 
             return orders;
@@ -249,10 +297,8 @@ class Order {
 
             const orders = rows.map(row => new Order(row));
 
-            if (options.withRelations) {
-                for (const order of orders) {
-                    await order.loadRelations(connection);
-                }
+            if (options.withRelations && orders.length > 0) {
+                await Order.batchLoadRelations(orders, connection);
             }
 
             return orders;
@@ -274,8 +320,8 @@ class Order {
 
             const orders = rows.map(row => new Order(row));
 
-            for (const order of orders) {
-                await order.loadRelations(connection);
+            if (orders.length > 0) {
+                await Order.batchLoadRelations(orders, connection);
             }
 
             return orders;

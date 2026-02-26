@@ -20,19 +20,17 @@ class NotificationService {
         try {
             console.log(`🔔 Notificando providers sobre novo pedido: ${order.title}`);
 
-            // Get ALL provider tokens for push notifications (not filtered by category)
-            const providerTokens = await User.getProviderTokens();
+            // Run DB lookups in parallel
+            const [providerTokens, providers] = await Promise.all([
+                User.getProviderTokens(),
+                User.findProvidersByCategory(order.category),
+            ]);
             console.log(`📱 ${providerTokens.length} providers com tokens FCM`);
-
-            // Find providers that work with the order category for database notifications
-            const providers = await User.findProvidersByCategory(order.category);
             console.log(`📋 Encontrados ${providers.length} providers na categoria ${order.category}`);
 
-            const notifications = [];
-
-            // Create database notifications
-            for (const provider of providers) {
-                const notification = await this.createNotification({
+            // Create database notifications in parallel (not sequentially)
+            const notificationPromises = providers.map(provider =>
+                this.createNotification({
                     user_id: provider.id,
                     type: Notification.TYPE_NEW_ORDER,
                     title: 'Novo Leilão Disponível',
@@ -43,19 +41,18 @@ class NotificationService {
                         order_category: order.category,
                         order_budget: order.budget
                     }
-                });
-                notifications.push(notification);
-            }
+                }).catch(err => {
+                    console.error(`⚠️ Erro ao criar notificação para provider ${provider.id}:`, err.message);
+                    return null;
+                })
+            );
 
-            // Send push notifications to ALL providers with tokens
-            if (providerTokens.length > 0) {
-                const pushTitle = 'Novo Leilão Disponível';
-                const pushMessage = order.title;
-
-                const pushResults = await this.pushService.sendBulkNotifications(
+            // Send push notifications concurrently with DB notifications
+            const pushPromise = providerTokens.length > 0
+                ? this.pushService.sendBulkNotifications(
                     providerTokens,
-                    pushTitle,
-                    pushMessage,
+                    'Novo Leilão Disponível',
+                    order.title,
                     {
                         sound: 'default',
                         data: {
@@ -66,12 +63,20 @@ class NotificationService {
                             order_budget: order.budget
                         }
                     }
-                );
+                ).then(pushResults => {
+                    console.log(`✅ Push notifications enviadas: ${pushResults.filter(r => r.success).length} sucesso, ${pushResults.filter(r => !r.success).length} falhas`);
+                }).catch(err => {
+                    console.error('⚠️ Erro ao enviar push notifications:', err.message);
+                })
+                : Promise.resolve();
 
-                console.log(`✅ Push notifications enviadas: ${pushResults.filter(r => r.success).length} sucesso, ${pushResults.filter(r => !r.success).length} falhas`);
-            }
+            // Wait for all concurrently
+            const [notifications] = await Promise.all([
+                Promise.all(notificationPromises),
+                pushPromise,
+            ]);
 
-            return notifications;
+            return notifications.filter(Boolean);
         } catch (error) {
             console.error('Erro ao notificar prestadores sobre nova demanda:', error);
             throw error;

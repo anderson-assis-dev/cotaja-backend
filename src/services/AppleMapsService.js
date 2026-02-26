@@ -274,7 +274,7 @@ class AppleMapsService {
             complement: '',
             neighborhood: addr.subLocality || addr.dependentLocalities?.[0] || '',
             city: addr.locality || '',
-            state: addr.administrativeArea || addr.administrativeAreaCode || '',
+            state: addr.administrativeAreaCode || (addr.administrativeArea || '').substring(0, 2) || '',
             zip_code: addr.postCode || '',
             latitude: loc.latitude || null,
             longitude: loc.longitude || null,

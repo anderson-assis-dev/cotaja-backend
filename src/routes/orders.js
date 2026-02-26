@@ -11,10 +11,11 @@ const {
 // All routes require authentication
 router.use(authenticateToken);
 
-// Middleware simplificado para upload (usa pasta temporária)
+// Middleware simplificado para upload (usa pasta temporária - caminho absoluto para PM2)
 const multer = require('multer');
+const path = require('path');
 const upload = multer({
-    dest: 'uploads/temp/',
+    dest: path.join(__dirname, '../../uploads/temp/'),
     limits: {
         fileSize: 50 * 1024 * 1024, // 50MB
         files: 10

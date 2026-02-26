@@ -93,7 +93,7 @@ class OrderController {
             let finalNumber = number || null;
             let finalNeighborhood = neighborhood || null;
             let finalCity = city || null;
-            let finalState = state || null;
+            let finalState = state ? state.substring(0, 2).toUpperCase() : null;
             let finalZipCode = zip_code || null;
 
             try {
@@ -107,7 +107,7 @@ class OrderController {
                         // Fill missing structured fields from geocoding
                         if (!finalStreet && geocoded.street) finalStreet = geocoded.street;
                         if (!finalCity && geocoded.city) finalCity = geocoded.city;
-                        if (!finalState && geocoded.state) finalState = geocoded.state;
+                        if (!finalState && geocoded.state) finalState = geocoded.state.substring(0, 2).toUpperCase();
                         if (!finalZipCode && geocoded.zip_code) finalZipCode = geocoded.zip_code;
                         if (!finalNeighborhood && geocoded.neighborhood) finalNeighborhood = geocoded.neighborhood;
                         console.log('✅ Geocoding obtido:', { lat: finalLat, lng: finalLng });
@@ -121,7 +121,7 @@ class OrderController {
                         if (!finalStreet) finalStreet = reversed.street;
                         if (!finalNumber) finalNumber = reversed.number;
                         if (!finalCity) finalCity = reversed.city;
-                        if (!finalState) finalState = reversed.state;
+                        if (!finalState) finalState = reversed.state ? reversed.state.substring(0, 2).toUpperCase() : null;
                         if (!finalZipCode) finalZipCode = reversed.zip_code;
                         if (!finalNeighborhood) finalNeighborhood = reversed.neighborhood;
                         console.log('✅ Reverse geocoding obtido:', fullAddress);
@@ -172,21 +172,18 @@ class OrderController {
 
             console.log('Pedido criado com sucesso', { order_id: order.id });
 
-            // Load relations
-            await order.loadRelations();
+            // ── Fire-and-forget: notifications + emails (não bloqueia a resposta) ──
+            notificationService.notifyProvidersAboutNewOrder(order).catch(error => {
+                console.error('❌ Erro ao enviar notificações push (background):', error.message);
+            });
 
-            // Notify providers about new order
-            try {
-                await notificationService.notifyProvidersAboutNewOrder(order);
-            } catch (error) {
-                console.error('Erro ao enviar notificações:', error);
-            }
-
-            // Send emails to providers (fire-and-forget, não bloqueia a response)
             const orderCtrl = module.exports;
             orderCtrl.sendNewOrderEmails(order).catch(error => {
                 console.error('❌ Erro ao enviar e-mails (background):', error.message);
             });
+
+            // Load relations in background for the response (lightweight)
+            try { await order.loadRelations(); } catch (e) { /* ignore */ }
 
             return res.status(201).json({
                 success: true,

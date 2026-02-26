@@ -183,7 +183,7 @@ class PushNotificationService {
     /**
      * Internal method to send iOS notification with automatic fallback from sandbox to production
      */
-    async _sendIOSWithFallback(registrationId, title, message, sound, imageUrl, startWithProduction = false, extraData = null) {
+    async _sendIOSWithFallback(registrationId, title, message, sound, imageUrl, startWithProduction = true, extraData = null) {
         const environments = startWithProduction ? ['production', 'sandbox'] : ['sandbox', 'production'];
 
         for (let i = 0; i < environments.length; i++) {
@@ -407,47 +407,37 @@ class PushNotificationService {
      * Send notification to multiple devices
      */
     async sendBulkNotifications(devices, title, message, options = {}) {
-        console.log(`📤 [sendBulkNotifications] Enviando para ${devices.length} dispositivos`);
+        console.log(`📤 [sendBulkNotifications] Enviando para ${devices.length} dispositivos em paralelo`);
         console.log(`   Título: ${title}`);
         console.log(`   Mensagem: ${message}`);
 
-        const results = [];
-
-        for (let i = 0; i < devices.length; i++) {
-            const device = devices[i];
-            console.log(`📱 [${i + 1}/${devices.length}] Enviando para:`, {
+        // Send ALL notifications in parallel
+        const promises = devices.map((device, i) => {
+            console.log(`📱 [${i + 1}/${devices.length}] Enfileirando:`, {
                 name: device.name,
-                email: device.email,
                 platform: device.platform,
                 token: device.token ? device.token.substring(0, 20) + '...' : 'AUSENTE'
             });
 
-            try {
-                const result = await this.sendAlert({
-                    registration_id: device.token,
-                    device: device.platform,
-                    title: title,
-                    message: message,
-                    sound: options.sound || 'default',
-                    image_url: options.image_url,
-                    ...options.data
-                });
-
+            return this.sendAlert({
+                registration_id: device.token,
+                device: device.platform,
+                title: title,
+                message: message,
+                sound: options.sound || 'default',
+                image_url: options.image_url,
+                production: true, // always try production first
+                ...options.data
+            }).then(result => {
                 console.log(`   ✅ Sucesso para ${device.name}`);
-                results.push({
-                    device_id: device.id,
-                    success: true,
-                    result: result
-                });
-            } catch (error) {
+                return { device_id: device.id, success: true, result };
+            }).catch(error => {
                 console.error(`   ❌ Falha para ${device.name}:`, error.message);
-                results.push({
-                    device_id: device.id,
-                    success: false,
-                    error: error.message
-                });
-            }
-        }
+                return { device_id: device.id, success: false, error: error.message };
+            });
+        });
+
+        const results = await Promise.all(promises);
 
         console.log(`📊 [sendBulkNotifications] Resultado: ${results.filter(r => r.success).length} sucesso, ${results.filter(r => !r.success).length} falhas`);
         return results;

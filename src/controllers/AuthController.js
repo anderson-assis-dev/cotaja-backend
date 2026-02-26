@@ -187,12 +187,7 @@ class AuthController {
             if (existingUser) {
                 return res.status(422).json({
                     success: false,
-                    message: 'Dados inválidos',
-                    errors: {
-                        email: {
-                            msg: 'Não foi possível realizar o seu cadastro. Tente novamente.',
-                        }
-                    }
+                    message: 'Erro, não foi possível cadastrar a sua conta nesse momento. Tente utilizar um email diferente.',
                 });
             }
 

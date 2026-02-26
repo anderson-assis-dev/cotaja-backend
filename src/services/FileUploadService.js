@@ -155,12 +155,24 @@ class FileUploadService {
     }
 
     /**
-     * Process uploaded files — convert to base64 and return metadata with embedded data.
-     * Files are read from the temp directory, converted to base64, then deleted.
-     * No files are permanently stored on disk.
+     * Process uploaded files — move from temp to permanent organized directory.
+     * Only metadata (path, name, type, size) is stored in the database.
+     * Files are served via the /uploads/ static route.
      */
     async processUploadedFiles(files, clientEmail, orderTitle) {
         const processedFiles = [];
+
+        // Create organized directory: uploads/orders/{email}/{order_title}/
+        const sanitizedEmail = this.sanitizeForFilename(clientEmail || 'unknown');
+        const sanitizedTitle = this.sanitizeForFilename(orderTitle || 'order');
+        const finalDir = path.join(this.uploadDir, 'orders', sanitizedEmail, sanitizedTitle);
+
+        try {
+            await fs.mkdir(finalDir, { recursive: true });
+        } catch (mkdirError) {
+            console.error('❌ Erro ao criar diretório de uploads:', mkdirError);
+            throw mkdirError;
+        }
 
         for (const file of files) {
             try {
@@ -180,32 +192,43 @@ class FileUploadService {
                     fileType = 'video';
                 }
 
-                // Read file and convert to base64
-                const fileBuffer = await fs.readFile(file.path);
-                const base64Data = fileBuffer.toString('base64');
+                // Generate unique filename
+                const uniqueSuffix = Date.now() + '_' + Math.round(Math.random() * 1E9);
+                const ext = path.extname(file.originalname || 'file');
+                const basename = path.basename(file.originalname || 'file', ext);
+                const sanitizedBasename = this.sanitizeForFilename(basename);
+                const finalFilename = `${uniqueSuffix}_${sanitizedBasename}${ext}`;
+
+                // Move file from temp to permanent location
+                const finalPath = path.join(finalDir, finalFilename);
+
+                try {
+                    // Try rename first (fastest, same filesystem)
+                    await fs.rename(file.path, finalPath);
+                } catch (renameError) {
+                    // If rename fails (cross-device), copy + delete
+                    console.log('⚠️ rename falhou, usando copy + delete:', renameError.code);
+                    await fs.copyFile(file.path, finalPath);
+                    try { await fs.unlink(file.path); } catch (e) { /* ignore */ }
+                }
+
+                // Build relative path for storage and URL construction
+                // Path relative to uploads/ dir: orders/{email}/{title}/{filename}
+                const relativePath = `orders/${sanitizedEmail}/${sanitizedTitle}/${finalFilename}`;
                 const mimeType = file.mimetype || 'application/octet-stream';
 
-                // Build data URI: data:<mime>;base64,<data>
-                const dataUri = `data:${mimeType};base64,${base64Data}`;
-
                 processedFiles.push({
-                    filename: file.originalname || 'file',
+                    filename: finalFilename,
                     original_name: file.originalname || 'file',
-                    data: dataUri,
+                    path: `uploads/${relativePath}`,
                     mime_type: mimeType,
                     size: file.size || 0,
                     type: fileType,
                     uploaded_at: new Date().toISOString()
                 });
 
-                console.log(`✅ Arquivo convertido para base64: ${file.originalname} (${(base64Data.length / 1024).toFixed(1)} KB)`);
-
-                // Delete temp file
-                try {
-                    await fs.unlink(file.path);
-                } catch (e) {
-                    // ignore cleanup errors
-                }
+                const fileSizeMB = ((file.size || 0) / (1024 * 1024)).toFixed(2);
+                console.log(`✅ Arquivo salvo em disco: ${file.originalname} (${fileSizeMB} MB) → ${relativePath}`);
             } catch (error) {
                 console.error(`Erro ao processar arquivo ${file.originalname}:`, error);
                 // Try to clean up temp file
@@ -231,16 +254,22 @@ class FileUploadService {
 
     /**
      * Delete files from filesystem
+     * Handles both absolute and relative paths (e.g., "uploads/orders/...")
      */
     async deleteFiles(filePaths) {
         const results = [];
 
-        for (const filePath of filePaths) {
+        for (let filePath of filePaths) {
             try {
+                // If relative path, resolve from project root
+                if (!path.isAbsolute(filePath)) {
+                    filePath = path.resolve(filePath);
+                }
                 await fs.unlink(filePath);
                 results.push({ path: filePath, deleted: true });
+                console.log(`🗑️ Arquivo deletado: ${filePath}`);
             } catch (error) {
-                console.error(`Error deleting file ${filePath}:`, error);
+                console.error(`Error deleting file ${filePath}:`, error.message);
                 results.push({ path: filePath, deleted: false, error: error.message });
             }
         }

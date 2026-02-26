@@ -297,10 +297,25 @@ class OrderController {
             }
 
             if (removedPaths.length > 0) {
+                // Collect file paths to delete from disk
+                const filesToDelete = [];
                 existingAttachments = existingAttachments.filter(att => {
                     const attId = att.filename || att.original_name || att.path || '';
-                    return !removedPaths.includes(attId);
+                    if (removedPaths.includes(attId)) {
+                        // Track path for disk cleanup
+                        if (att.path) filesToDelete.push(att.path);
+                        return false;
+                    }
+                    return true;
                 });
+
+                // Delete removed files from disk
+                if (filesToDelete.length > 0) {
+                    fileUploadService.deleteFiles(filesToDelete).catch(err => {
+                        console.error('⚠️ Erro ao deletar arquivos removidos:', err);
+                    });
+                }
+
                 console.log('📎 Anexos restantes após remoção:', existingAttachments.length);
             }
 

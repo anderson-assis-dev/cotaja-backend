@@ -469,6 +469,26 @@ class Order {
             provider: this.provider,
         };
     }
+
+    /**
+     * Lightweight serialization for list endpoints.
+     * Strips the heavy base64 `data` field from image attachments
+     * to keep the response small and fast.
+     */
+    toListJSON() {
+        const lightAttachments = Array.isArray(this.attachments)
+            ? this.attachments.map(att => {
+                // Remove the data field (base64 payload) — keep everything else
+                const { data, ...rest } = att;
+                return rest;
+            })
+            : this.attachments;
+
+        return {
+            ...this.toJSON(),
+            attachments: lightAttachments,
+        };
+    }
 }
 
 module.exports = Order;

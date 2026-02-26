@@ -37,12 +37,15 @@ class OrderController {
             const endIndex = startIndex + parseInt(limit);
             const paginatedOrders = orders.slice(startIndex, endIndex);
 
+            // Use lightweight serialization (strips base64 data from attachments)
+            const lightOrders = paginatedOrders.map(o => o.toListJSON());
+
             const pagination = {
                 current_page: parseInt(page),
                 per_page: parseInt(limit),
                 total: orders.length,
                 last_page: Math.ceil(orders.length / limit),
-                data: paginatedOrders
+                data: lightOrders
             };
 
             return res.json({
@@ -223,7 +226,8 @@ class OrderController {
                 });
             }
 
-            if (user.isProvider() && order.provider_id !== user.id) {
+            // Providers can view orders they own OR open orders (for detail view)
+            if (user.isProvider() && order.provider_id !== user.id && order.status !== 'open') {
                 return res.status(403).json({
                     success: false,
                     message: 'Acesso negado'
@@ -483,21 +487,20 @@ class OrderController {
             const endIndex = startIndex + parseInt(limit);
             const paginatedOrders = orders.slice(startIndex, endIndex);
 
+            // Use lightweight serialization (strips base64 data from attachments)
+            const lightOrders = paginatedOrders.map(o => o.toListJSON());
+
             const pagination = {
                 current_page: parseInt(page),
                 per_page: parseInt(limit),
                 total: orders.length,
                 last_page: Math.ceil(orders.length / limit),
-                data: paginatedOrders
+                data: lightOrders
             };
 
             // Debug log
-            if (paginatedOrders.length > 0) {
-                console.log('📤 Enviando pedidos - First order proposals:', paginatedOrders[0]?.proposals?.length || 0);
-                const jsonStr = JSON.stringify(paginatedOrders[0]);
-                console.log('📤 First order JSON length:', jsonStr.length);
-                console.log('📤 JSON contains proposals?', jsonStr.includes('"proposals"'));
-                console.log('📤 Proposals in JSON:', jsonStr.substring(jsonStr.indexOf('"proposals"'), jsonStr.indexOf('"proposals"') + 200));
+            if (lightOrders.length > 0) {
+                console.log('📤 Enviando pedidos - First order proposals:', lightOrders[0]?.proposals?.length || 0);
             } else {
                 console.log('📤 Enviando pedidos - nenhum resultado');
             }
@@ -591,7 +594,7 @@ class OrderController {
 
             return res.json({
                 success: true,
-                data: orders
+                data: orders.map(o => o.toListJSON ? o.toListJSON() : o)
             });
         } catch (error) {
             console.error('Erro ao obter pedidos recentes:', error);

@@ -60,8 +60,7 @@ class OrderController {
 
     async store(req, res) {
         try {
-            console.log('Criando pedido', req.body);
-
+            const t0 = Date.now();
             const user = req.user;
 
             if (!user.isClient()) {
@@ -86,7 +85,6 @@ class OrderController {
                 fullAddress = parts.join(', ');
             }
 
-            // Auto-geocode: if we have address but no coordinates, get them
             let finalLat = latitude ? parseFloat(latitude) : null;
             let finalLng = longitude ? parseFloat(longitude) : null;
             let finalStreet = street || null;
@@ -96,25 +94,25 @@ class OrderController {
             let finalState = state ? state.substring(0, 2).toUpperCase() : null;
             let finalZipCode = zip_code || null;
 
-            try {
-                if (fullAddress && (!finalLat || !finalLng)) {
-                    // Forward geocode: address → coordinates
+            // Geocoding only if coordinates are missing
+            if (fullAddress && (!finalLat || !finalLng)) {
+                try {
                     console.log('🗺️ Forward geocoding endereço:', fullAddress);
                     const geocoded = await appleMapsService.forwardGeocode(fullAddress);
                     if (geocoded) {
                         finalLat = geocoded.latitude;
                         finalLng = geocoded.longitude;
-                        // Fill missing structured fields from geocoding
                         if (!finalStreet && geocoded.street) finalStreet = geocoded.street;
                         if (!finalCity && geocoded.city) finalCity = geocoded.city;
                         if (!finalState && geocoded.state) finalState = geocoded.state.substring(0, 2).toUpperCase();
                         if (!finalZipCode && geocoded.zip_code) finalZipCode = geocoded.zip_code;
                         if (!finalNeighborhood && geocoded.neighborhood) finalNeighborhood = geocoded.neighborhood;
-                        console.log('✅ Geocoding obtido:', { lat: finalLat, lng: finalLng });
                     }
-                } else if (finalLat && finalLng && !fullAddress) {
-                    // Reverse geocode: coordinates → address
-                    console.log('🗺️ Reverse geocoding coordenadas:', finalLat, finalLng);
+                } catch (geocodeError) {
+                    console.error('⚠️ Geocoding falhou (continuando):', geocodeError.message);
+                }
+            } else if (finalLat && finalLng && !fullAddress) {
+                try {
                     const reversed = await appleMapsService.reverseGeocode(finalLat, finalLng);
                     if (reversed) {
                         fullAddress = reversed.formatted_address;
@@ -124,31 +122,26 @@ class OrderController {
                         if (!finalState) finalState = reversed.state ? reversed.state.substring(0, 2).toUpperCase() : null;
                         if (!finalZipCode) finalZipCode = reversed.zip_code;
                         if (!finalNeighborhood) finalNeighborhood = reversed.neighborhood;
-                        console.log('✅ Reverse geocoding obtido:', fullAddress);
                     }
+                } catch (geocodeError) {
+                    console.error('⚠️ Geocoding falhou (continuando):', geocodeError.message);
                 }
-            } catch (geocodeError) {
-                console.error('⚠️ Erro no geocoding (continuando sem coordenadas):', geocodeError.message);
             }
+
+            const t1 = Date.now();
 
             // Process attachments if any
             let attachments = null;
             if (req.files && req.files.length > 0) {
-                console.log(`📎 Processando ${req.files.length} arquivos anexados`);
-
                 try {
-                    // Process uploaded files (virus scan + metadata + move to final location)
                     attachments = await fileUploadService.processUploadedFiles(req.files, user.email, title);
-                    console.log(`✅ ${attachments.length} arquivos processados com sucesso`);
-
-                    if (attachments.length < req.files.length) {
-                        console.log(`⚠️  ${req.files.length - attachments.length} arquivo(s) infectado(s) removido(s)`);
-                    }
+                    console.log(`✅ ${attachments.length} arquivos processados em ${Date.now() - t1}ms`);
                 } catch (error) {
                     console.error('Erro ao processar arquivos:', error);
-                    // Continue even if file processing fails
                 }
             }
+
+            const t2 = Date.now();
 
             const order = await Order.create({
                 title,
@@ -170,23 +163,39 @@ class OrderController {
                 attachments: attachments ? JSON.stringify(attachments) : null
             });
 
-            console.log('Pedido criado com sucesso', { order_id: order.id });
+            const t3 = Date.now();
+            console.log(`✅ Pedido #${order.id} criado — total: ${t3 - t0}ms (geocode: ${t1 - t0}ms, files: ${t2 - t1}ms, db: ${t3 - t2}ms)`);
 
-            // ── Responder IMEDIATAMENTE ao cliente ──
+            // ── RESPONSE IMEDIATO — sem base64 no corpo ──
+            // Retorna o pedido sem os dados pesados (base64) dos attachments
+            const responseOrder = { ...order };
+            if (responseOrder.attachments && Array.isArray(responseOrder.attachments)) {
+                responseOrder.attachments = responseOrder.attachments.map(att => {
+                    const { data, ...rest } = att;
+                    return rest;
+                });
+            } else if (typeof responseOrder.attachments === 'string') {
+                try {
+                    const parsed = JSON.parse(responseOrder.attachments);
+                    responseOrder.attachments = parsed.map(att => {
+                        const { data, ...rest } = att;
+                        return rest;
+                    });
+                } catch (e) { /* keep as-is */ }
+            }
+
             res.status(201).json({
                 success: true,
                 message: 'Pedido criado com sucesso!',
-                data: order
+                data: responseOrder
             });
 
-            // ── Tudo abaixo roda em background APÓS o response já ter sido enviado ──
+            // ── Background: notificações + emails (já respondeu ao cliente) ──
             notificationService.notifyProvidersAboutNewOrder(order).catch(error => {
-                console.error('❌ Erro ao enviar notificações push (background):', error.message);
+                console.error('❌ Erro notificações (background):', error.message);
             });
-
-            const orderCtrl = module.exports;
-            orderCtrl.sendNewOrderEmails(order).catch(error => {
-                console.error('❌ Erro ao enviar e-mails (background):', error.message);
+            module.exports.sendNewOrderEmails(order).catch(error => {
+                console.error('❌ Erro e-mails (background):', error.message);
             });
 
             return;

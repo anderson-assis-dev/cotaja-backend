@@ -7,6 +7,7 @@ const orderRoutes = require('./orders');
 const proposalRoutes = require('./proposals');
 const notificationRoutes = require('./notifications');
 const serviceRoutes = require('./services');
+const providerRoutes = require('./providers');
 const geocodingRoutes = require('./geocoding');
 const chatRoutes = require('./chat');
 
@@ -16,6 +17,7 @@ router.use('/orders', orderRoutes);
 router.use('/proposals', proposalRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/services', serviceRoutes);
+router.use('/providers', providerRoutes);
 router.use('/geocoding', geocodingRoutes);
 router.use('/chat', chatRoutes);
 

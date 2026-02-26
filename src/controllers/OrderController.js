@@ -385,11 +385,11 @@ class OrderController {
                 });
             }
 
-            // Check if order can be deleted
-            if (order.status !== Order.STATUS_OPEN) {
+            // Check if order can be deleted (only open or stopped orders)
+            if (order.status !== Order.STATUS_OPEN && order.status !== Order.STATUS_STOPPED) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Não é possível excluir um pedido que não está aberto'
+                    message: 'Não é possível excluir um pedido que não está aberto ou pausado'
                 });
             }
 
@@ -459,6 +459,57 @@ class OrderController {
             });
         } catch (error) {
             console.error('Erro ao excluir pedido:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Erro interno do servidor'
+            });
+        }
+    }
+
+    async toggleStop(req, res) {
+        try {
+            const { id } = req.params;
+            const user = req.user;
+
+            const order = await Order.findById(id);
+            if (!order) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Pedido não encontrado'
+                });
+            }
+
+            // Check permissions - only the order owner can stop/resume
+            if (order.client_id !== user.id) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Acesso negado'
+                });
+            }
+
+            // Toggle: open → stopped, stopped → open
+            if (order.status === Order.STATUS_OPEN) {
+                await order.update({ status: Order.STATUS_STOPPED });
+                return res.json({
+                    success: true,
+                    message: 'Pedido pausado com sucesso!',
+                    data: { ...order, status: Order.STATUS_STOPPED }
+                });
+            } else if (order.status === Order.STATUS_STOPPED) {
+                await order.update({ status: Order.STATUS_OPEN });
+                return res.json({
+                    success: true,
+                    message: 'Pedido retomado com sucesso!',
+                    data: { ...order, status: Order.STATUS_OPEN }
+                });
+            } else {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Só é possível pausar/retomar pedidos com status "aberto" ou "pausado"'
+                });
+            }
+        } catch (error) {
+            console.error('Erro ao pausar/retomar pedido:', error);
             return res.status(500).json({
                 success: false,
                 message: 'Erro interno do servidor'

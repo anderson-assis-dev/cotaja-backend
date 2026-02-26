@@ -74,6 +74,7 @@ router.put('/:id', (req, res, next) => {
     });
 }, updateOrderValidation, orderController.update);
 router.delete('/:id', orderController.destroy);
+router.post('/:id/toggle-stop', orderController.toggleStop);
 router.post('/:id/start-auction', orderController.startAuction);
 router.post('/:id/cancel', orderController.cancel);
 router.post('/:id/schedule', orderController.schedule);

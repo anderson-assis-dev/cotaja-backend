@@ -55,6 +55,7 @@ class Order {
     static get STATUS_IN_PROGRESS() { return 'in_progress'; }
     static get STATUS_COMPLETED() { return 'completed'; }
     static get STATUS_CANCELLED() { return 'cancelled'; }
+    static get STATUS_STOPPED() { return 'stopped'; }
 
     static async create(orderData) {
         const connection = await pool.getConnection();

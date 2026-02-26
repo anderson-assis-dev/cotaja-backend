@@ -232,6 +232,35 @@ class User {
         }
     }
 
+    static async listProvidersPublic({ search = null } = {}) {
+        const connection = await pool.getConnection();
+        try {
+            let query = `
+                SELECT id, uuid, name, email, phone, address, profile_type, service_categories, avatar_base64, activate, created_at, updated_at
+                FROM users
+                WHERE profile_type = 'provider'
+                AND activate = 1
+            `;
+            const params = [];
+            if (search) {
+                query += ' AND (LOWER(name) LIKE ? OR LOWER(email) LIKE ? OR LOWER(phone) LIKE ?)';
+                const q = `%${String(search).toLowerCase()}%`;
+                params.push(q, q, q);
+            }
+            query += ' ORDER BY created_at DESC';
+            const [rows] = await connection.execute(query, params);
+            return rows.map(row => {
+                if (row.service_categories) {
+                    try { row.service_categories = JSON.parse(row.service_categories); } catch (e) { row.service_categories = null; }
+                }
+                const user = new User(row);
+                return user.toJSON();
+            });
+        } finally {
+            connection.release();
+        }
+    }
+
     async update(updateData) {
         const connection = await pool.getConnection();
         try {

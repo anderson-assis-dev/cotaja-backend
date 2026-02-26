@@ -7,6 +7,7 @@ class ServiceController {
         this.create = this.create.bind(this);
         this.update = this.update.bind(this);
         this.index = this.index.bind(this);
+        this.available = this.available.bind(this);
         this.myServices = this.myServices.bind(this);
         this.show = this.show.bind(this);
         this.delete = this.delete.bind(this);
@@ -192,6 +193,42 @@ class ServiceController {
             });
         } catch (error) {
             console.error('Erro ao listar serviços:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Erro interno do servidor'
+            });
+        }
+    }
+
+    async available(req, res) {
+        try {
+            const { category, provider_id, search } = req.query;
+            const providers = await User.listProvidersPublic({ search: search || null });
+            const filteredProviders = provider_id ? providers.filter(p => String(p.id) === String(provider_id)) : providers;
+            const data = filteredProviders.map(p => ({
+                id: null,
+                title: null,
+                description: null,
+                price: null,
+                category: category || null,
+                status: 'active',
+                provider_id: p.id,
+                images: [],
+                created_at: null,
+                updated_at: null,
+                provider: p
+            }));
+            return res.status(200).json({
+                success: true,
+                message: 'Prestadores listados com sucesso',
+                data: {
+                    data,
+                    current_page: 1,
+                    total: data.length
+                }
+            });
+        } catch (error) {
+            console.error('Erro ao listar serviços disponíveis:', error);
             return res.status(500).json({
                 success: false,
                 message: 'Erro interno do servidor'

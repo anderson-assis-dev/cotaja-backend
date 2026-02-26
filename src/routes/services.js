@@ -8,6 +8,7 @@ router.use(authenticateToken);
 
 // Service routes
 router.get('/', serviceController.index);
+router.get('/available', serviceController.available);
 router.post('/', serviceController.create);
 router.get('/my-services', serviceController.myServices);
 router.get('/:id', serviceController.show);

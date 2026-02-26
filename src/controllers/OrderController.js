@@ -37,15 +37,12 @@ class OrderController {
             const endIndex = startIndex + parseInt(limit);
             const paginatedOrders = orders.slice(startIndex, endIndex);
 
-            // Use lightweight serialization (strips base64 data from attachments)
-            const lightOrders = paginatedOrders.map(o => o.toListJSON());
-
             const pagination = {
                 current_page: parseInt(page),
                 per_page: parseInt(limit),
                 total: orders.length,
                 last_page: Math.ceil(orders.length / limit),
-                data: lightOrders
+                data: paginatedOrders
             };
 
             return res.json({
@@ -487,20 +484,17 @@ class OrderController {
             const endIndex = startIndex + parseInt(limit);
             const paginatedOrders = orders.slice(startIndex, endIndex);
 
-            // Use lightweight serialization (strips base64 data from attachments)
-            const lightOrders = paginatedOrders.map(o => o.toListJSON());
-
             const pagination = {
                 current_page: parseInt(page),
                 per_page: parseInt(limit),
                 total: orders.length,
                 last_page: Math.ceil(orders.length / limit),
-                data: lightOrders
+                data: paginatedOrders
             };
 
             // Debug log
-            if (lightOrders.length > 0) {
-                console.log('📤 Enviando pedidos - First order proposals:', lightOrders[0]?.proposals?.length || 0);
+            if (paginatedOrders.length > 0) {
+                console.log('📤 Enviando pedidos - First order proposals:', paginatedOrders[0]?.proposals?.length || 0);
             } else {
                 console.log('📤 Enviando pedidos - nenhum resultado');
             }
@@ -594,7 +588,7 @@ class OrderController {
 
             return res.json({
                 success: true,
-                data: orders.map(o => o.toListJSON ? o.toListJSON() : o)
+                data: orders
             });
         } catch (error) {
             console.error('Erro ao obter pedidos recentes:', error);

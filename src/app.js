@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const fileUpload = require('express-fileupload');
+const path = require('path');
 require('dotenv').config();
 
 const { testConnection } = require('./config/database');
@@ -35,10 +36,21 @@ app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
 // Serve static files (for test pages)
-app.use('/public', express.static('public'));
+app.use('/public', express.static(path.join(__dirname, '..', 'public')));
 
-// Serve uploaded files
-app.use('/uploads', express.static('uploads'));
+// Serve uploaded files (use absolute path so PM2 can find them)
+const uploadsDir = path.join(__dirname, '..', 'uploads');
+console.log('📁 Serving uploads from:', uploadsDir);
+app.use('/uploads', express.static(uploadsDir, {
+    setHeaders: (res, filePath) => {
+        // Allow cross-origin access for media files
+        res.set('Access-Control-Allow-Origin', '*');
+        // Set correct content types for media
+        if (filePath.endsWith('.mp4')) res.set('Content-Type', 'video/mp4');
+        else if (filePath.endsWith('.mov')) res.set('Content-Type', 'video/quicktime');
+        else if (filePath.endsWith('.webm')) res.set('Content-Type', 'video/webm');
+    }
+}));
 
 // API routes
 app.use('/api', routes);

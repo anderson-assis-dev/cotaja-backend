@@ -20,13 +20,13 @@ static async listByProvider(provider_id){
 await ProviderRating.ensureTable();
 const connection=await pool.getConnection();
 try{
-const [rows]=await connection.execute('SELECT * FROM provider_ratings WHERE provider_id=? ORDER BY created_at DESC',[String(provider_id)]);
+const [rows]=await connection.execute('SELECT pr.*,u.name client_name,u.avatar_base64 client_avatar_base64 FROM provider_ratings pr LEFT JOIN users u ON u.id=pr.client_id WHERE pr.provider_id=? ORDER BY pr.created_at DESC',[String(provider_id)]);
 return rows;
 }finally{connection.release();}
 }
 static async getStatsForProviders(providerIds){
 await ProviderRating.ensureTable();
-const ids=Array.isArray(providerIds)?providerIds.map(id=>String(id)).filter(Boolean):[];
+const ids=Array.isArray(providerIds)?providerIds.map(String).filter(Boolean):[];
 if(ids.length===0)return new Map();
 const connection=await pool.getConnection();
 try{
@@ -34,7 +34,7 @@ const placeholders=ids.map(()=>'?').join(',');
 const [rows]=await connection.execute(`SELECT provider_id,COUNT(*) ratings_count,AVG(rating) avg_rating FROM provider_ratings WHERE provider_id IN (${placeholders}) GROUP BY provider_id`,ids);
 const map=new Map();
 for(const r of rows){
-map.set(String(r.provider_id),{ratings_count:Number(r.ratings_count)||0,avg_rating:r.avg_rating!==null?Number(r.avg_rating):0});
+map.set(String(r.provider_id),{ratings_count:Number(r.ratings_count)||0,avg_rating:r.avg_rating==null?0:Number(r.avg_rating)});
 }
 return map;
 }finally{connection.release();}

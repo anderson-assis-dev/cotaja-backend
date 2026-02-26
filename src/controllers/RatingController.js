@@ -34,7 +34,14 @@ const {providerId}=req.params;
 if(!providerId){
 return res.status(422).json({success:false,message:'Dados inválidos'});
 }
-const rows=await ProviderRating.listByProvider(providerId);
+const rowsRaw=await ProviderRating.listByProvider(providerId);
+const rows=Array.isArray(rowsRaw)?rowsRaw.map(r=>{
+let attachments=r.attachments;
+if(typeof attachments==='string'&&attachments){
+try{attachments=JSON.parse(attachments);}catch(e){console.warn('invalid attachments json',e);attachments=null;}
+}
+return {...r,attachments};
+}):[];
 return res.status(200).json({success:true,message:'Avaliações listadas com sucesso',data:{data:rows,current_page:1,total:rows.length}});
 }catch(error){
 console.error('Erro ao listar avaliações:',error);

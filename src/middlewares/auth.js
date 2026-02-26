@@ -18,9 +18,18 @@ const authenticateToken = async (req, res, next) => {
         req.token = token;
         next();
     } catch (error) {
-        return res.status(401).json({
+        const AUTH_MESSAGES = ['Token inválido', 'Token não fornecido', 'Formato de token inválido'];
+        const isAuthError = AUTH_MESSAGES.includes(error.message);
+        if (isAuthError) {
+            return res.status(401).json({
+                success: false,
+                message: error.message || 'Token inválido'
+            });
+        }
+        console.error('Auth middleware error:', error);
+        return res.status(500).json({
             success: false,
-            message: error.message || 'Token inválido'
+            message: 'Erro interno do servidor'
         });
     }
 };

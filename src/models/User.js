@@ -5,6 +5,7 @@ const crypto = require('crypto');
 class User {
     constructor(data = {}) {
         this.id = data.id || null;
+        this.uuid = data.uuid || null;
         this.name = data.name || null;
         this.email = data.email || null;
         this.phone = data.phone || null;
@@ -39,8 +40,8 @@ class User {
             // Generate activation token
             const activationToken = crypto.randomUUID();
 
-            await connection.execute(
-                `INSERT INTO users (id, name, email, phone, password, profile_type, address, service_categories, fcm_token, device_platform, activate, activation_token, created_at, updated_at)
+            const [result] = await connection.execute(
+                `INSERT INTO users (uuid, name, email, phone, password, profile_type, address, service_categories, fcm_token, device_platform, activate, activation_token, created_at, updated_at)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
                 [
                     uuid,
@@ -58,7 +59,7 @@ class User {
                 ]
             );
 
-            return await User.findById(uuid);
+            return await User.findById(result.insertId);
         } finally {
             connection.release();
         }

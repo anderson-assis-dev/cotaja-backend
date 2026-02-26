@@ -213,6 +213,12 @@ class Order {
                 }
             }
 
+            if (options.search) {
+                const term = `%${options.search}%`;
+                query += ' AND (title LIKE ? OR description LIKE ?)';
+                params.push(term, term);
+            }
+
             // Filter by proximity if coordinates provided
             if (options.latitude && options.longitude) {
                 // Haversine formula approximation: ~111km per degree

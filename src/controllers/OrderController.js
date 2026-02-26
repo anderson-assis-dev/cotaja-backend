@@ -528,11 +528,12 @@ class OrderController {
                 });
             }
 
-            const { category, cep, page = 1, limit = 10 } = req.query;
+            const { category, cep, search, page = 1, limit = 10 } = req.query;
 
             const orders = await Order.findOpen({
                 category,
                 cep,
+                search,
                 withRelations: true
             });
 

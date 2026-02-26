@@ -172,7 +172,14 @@ class OrderController {
 
             console.log('Pedido criado com sucesso', { order_id: order.id });
 
-            // ── Fire-and-forget: notifications + emails (não bloqueia a resposta) ──
+            // ── Responder IMEDIATAMENTE ao cliente ──
+            res.status(201).json({
+                success: true,
+                message: 'Pedido criado com sucesso!',
+                data: order
+            });
+
+            // ── Tudo abaixo roda em background APÓS o response já ter sido enviado ──
             notificationService.notifyProvidersAboutNewOrder(order).catch(error => {
                 console.error('❌ Erro ao enviar notificações push (background):', error.message);
             });
@@ -182,14 +189,7 @@ class OrderController {
                 console.error('❌ Erro ao enviar e-mails (background):', error.message);
             });
 
-            // Load relations in background for the response (lightweight)
-            try { await order.loadRelations(); } catch (e) { /* ignore */ }
-
-            return res.status(201).json({
-                success: true,
-                message: 'Pedido criado com sucesso!',
-                data: order
-            });
+            return;
         } catch (error) {
             console.error('Erro ao criar pedido:', error);
             return res.status(500).json({

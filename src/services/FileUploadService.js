@@ -159,8 +159,6 @@ class FileUploadService {
      * videos and documents are saved to disk (served via /uploads/).
      */
     async processUploadedFiles(files, clientEmail, orderTitle) {
-        const processedFiles = [];
-
         // Create organized directory for videos/documents: uploads/orders/{email}/{order_title}/
         const sanitizedEmail = this.sanitizeForFilename(clientEmail || 'unknown');
         const sanitizedTitle = this.sanitizeForFilename(orderTitle || 'order');
@@ -177,95 +175,94 @@ class FileUploadService {
             }
         }
 
-        for (const file of files) {
-            try {
-                // Scan for viruses
-                const scanResult = await this.scanFileForVirus(file.path);
+        // Process ALL files in parallel
+        const results = await Promise.all(files.map(file => this._processSingleFile(file, finalDir, sanitizedEmail, sanitizedTitle)));
 
-                if (scanResult.isInfected) {
-                    console.log(`🦠 Arquivo infectado removido: ${file.originalname}`);
-                    continue;
-                }
+        return results.filter(Boolean); // remove nulls (failed/infected)
+    }
 
-                // Determine file type based on mimetype
-                let fileType = 'document';
-                if (file.mimetype && file.mimetype.startsWith('image/')) {
-                    fileType = 'image';
-                } else if (file.mimetype && file.mimetype.startsWith('video/')) {
-                    fileType = 'video';
-                }
-
-                const mimeType = file.mimetype || 'application/octet-stream';
-
-                // IMAGES → convert to base64 and store in DB (no disk file)
-                if (fileType === 'image') {
-                    try {
-                        const fileBuffer = await fs.readFile(file.path);
-                        const base64Data = fileBuffer.toString('base64');
-                        const dataUri = `data:${mimeType};base64,${base64Data}`;
-
-                        processedFiles.push({
-                            filename: file.originalname || 'image',
-                            original_name: file.originalname || 'image',
-                            data: dataUri,
-                            mime_type: mimeType,
-                            size: file.size || 0,
-                            type: 'image',
-                            uploaded_at: new Date().toISOString()
-                        });
-
-                        // Delete temp file — data is in base64 now
-                        try { await fs.unlink(file.path); } catch (e) { /* ignore */ }
-
-                        const fileSizeKB = ((file.size || 0) / 1024).toFixed(0);
-                        console.log(`✅ Imagem convertida para base64: ${file.originalname} (${fileSizeKB} KB)`);
-                    } catch (readError) {
-                        console.error(`❌ Erro ao converter imagem para base64: ${file.originalname}`, readError);
-                        // Clean up temp file
-                        try { await fs.unlink(file.path); } catch (e) { /* ignore */ }
-                    }
-                    continue;
-                }
-
-                // VIDEOS & DOCUMENTS → save to disk, store path in DB
-                const uniqueSuffix = Date.now() + '_' + Math.round(Math.random() * 1E9);
-                const ext = path.extname(file.originalname || 'file');
-                const basename = path.basename(file.originalname || 'file', ext);
-                const sanitizedBasename = this.sanitizeForFilename(basename);
-                const finalFilename = `${uniqueSuffix}_${sanitizedBasename}${ext}`;
-
-                // Move file from temp to permanent location
-                const finalPath = path.join(finalDir, finalFilename);
-
-                try {
-                    await fs.rename(file.path, finalPath);
-                } catch (renameError) {
-                    console.log('⚠️ rename falhou, usando copy + delete:', renameError.code);
-                    await fs.copyFile(file.path, finalPath);
-                    try { await fs.unlink(file.path); } catch (e) { /* ignore */ }
-                }
-
-                const relativePath = `orders/${sanitizedEmail}/${sanitizedTitle}/${finalFilename}`;
-
-                processedFiles.push({
-                    filename: finalFilename,
-                    original_name: file.originalname || 'file',
-                    path: `uploads/${relativePath}`,
-                    mime_type: mimeType,
-                    size: file.size || 0,
-                    type: fileType,
-                    uploaded_at: new Date().toISOString()
-                });
-
-                const fileSizeMB = ((file.size || 0) / (1024 * 1024)).toFixed(2);
-                console.log(`✅ Arquivo salvo em disco: ${file.originalname} (${fileSizeMB} MB) → ${relativePath}`);
-            } catch (error) {
-                console.error(`Erro ao processar arquivo ${file.originalname}:`, error);
-                try { await fs.unlink(file.path); } catch (e) { /* ignore */ }
+    /**
+     * Process a single uploaded file (image→base64, video/doc→disk)
+     * @private
+     */
+    async _processSingleFile(file, finalDir, sanitizedEmail, sanitizedTitle) {
+        try {
+            // Determine file type based on mimetype
+            let fileType = 'document';
+            if (file.mimetype && file.mimetype.startsWith('image/')) {
+                fileType = 'image';
+            } else if (file.mimetype && file.mimetype.startsWith('video/')) {
+                fileType = 'video';
             }
-        }
 
-        return processedFiles;
+            const mimeType = file.mimetype || 'application/octet-stream';
+
+            // IMAGES → convert to base64 and store in DB (no disk file)
+            if (fileType === 'image') {
+                try {
+                    const fileBuffer = await fs.readFile(file.path);
+                    const base64Data = fileBuffer.toString('base64');
+                    const dataUri = `data:${mimeType};base64,${base64Data}`;
+
+                    // Delete temp file — data is in base64 now
+                    fs.unlink(file.path).catch(() => {});
+
+                    const fileSizeKB = ((file.size || 0) / 1024).toFixed(0);
+                    console.log(`✅ Imagem convertida para base64: ${file.originalname} (${fileSizeKB} KB)`);
+
+                    return {
+                        filename: file.originalname || 'image',
+                        original_name: file.originalname || 'image',
+                        data: dataUri,
+                        mime_type: mimeType,
+                        size: file.size || 0,
+                        type: 'image',
+                        uploaded_at: new Date().toISOString()
+                    };
+                } catch (readError) {
+                    console.error(`❌ Erro ao converter imagem para base64: ${file.originalname}`, readError);
+                    fs.unlink(file.path).catch(() => {});
+                    return null;
+                }
+            }
+
+            // VIDEOS & DOCUMENTS → save to disk, store path in DB
+            const uniqueSuffix = Date.now() + '_' + Math.round(Math.random() * 1E9);
+            const ext = path.extname(file.originalname || 'file');
+            const basename = path.basename(file.originalname || 'file', ext);
+            const sanitizedBasename = this.sanitizeForFilename(basename);
+            const finalFilename = `${uniqueSuffix}_${sanitizedBasename}${ext}`;
+
+            // Move file from temp to permanent location
+            const finalPath = path.join(finalDir, finalFilename);
+
+            try {
+                await fs.rename(file.path, finalPath);
+            } catch (renameError) {
+                console.log('⚠️ rename falhou, usando copy + delete:', renameError.code);
+                await fs.copyFile(file.path, finalPath);
+                fs.unlink(file.path).catch(() => {});
+            }
+
+            const relativePath = `orders/${sanitizedEmail}/${sanitizedTitle}/${finalFilename}`;
+
+            const fileSizeMB = ((file.size || 0) / (1024 * 1024)).toFixed(2);
+            console.log(`✅ Arquivo salvo em disco: ${file.originalname} (${fileSizeMB} MB) → ${relativePath}`);
+
+            return {
+                filename: finalFilename,
+                original_name: file.originalname || 'file',
+                path: `uploads/${relativePath}`,
+                mime_type: mimeType,
+                size: file.size || 0,
+                type: fileType,
+                uploaded_at: new Date().toISOString()
+            };
+        } catch (error) {
+            console.error(`Erro ao processar arquivo ${file.originalname}:`, error);
+            fs.unlink(file.path).catch(() => {});
+            return null;
+        }
     }
 
     /**

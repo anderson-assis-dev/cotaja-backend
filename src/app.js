@@ -11,8 +11,12 @@ const routes = require('./routes');
 
 const app = express();
 
-// Security middleware
-app.use(helmet());
+// Security middleware — relax policies for media/uploads
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    contentSecurityPolicy: false,          // allow inline data-URIs & media
+    crossOriginEmbedderPolicy: false,      // allow cross-origin media in WebView
+}));
 
 // CORS configuration
 app.use(cors({

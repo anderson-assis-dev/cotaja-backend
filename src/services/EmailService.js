@@ -1,9 +1,9 @@
 const nodemailer = require('nodemailer');
-const path = require('path');
+const path = require('node:path');
 
 class EmailService {
     constructor() {
-        const mailPort = parseInt(process.env.MAIL_PORT) || 465;
+        const mailPort = Number.parseInt(process.env.MAIL_PORT) || 465;
         this.transporter = nodemailer.createTransport({
             host: process.env.MAIL_HOST || 'smtp.gmail.com',
             port: mailPort,
@@ -92,7 +92,7 @@ class EmailService {
      * Template HTML para notificação de nova proposta (mesmo estilo do email de registro)
      */
     getNewProposalTemplate(order, proposal, provider, client) {
-        const priceFormatted = parseFloat(proposal.price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const priceFormatted = Number.parseFloat(proposal.price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const clientName = client?.name || 'Cliente';
 
         return `
@@ -304,7 +304,7 @@ class EmailService {
      */
     async sendScheduleConfirmedNotification(order, client, provider, formattedDate) {
         try {
-            const recipients = [client, provider].filter(u => u && u.email);
+            const recipients = [client, provider].filter(u => u?.email);
 
             for (const recipient of recipients) {
                 const html = this.getScheduleConfirmedTemplate(order, recipient, formattedDate);
@@ -363,11 +363,33 @@ class EmailService {
         }
     }
 
+    async sendQuoteRequestToProvider(provider, client, orders) {
+        const providerName = provider?.name || 'Prestador';
+        const clientName = client?.name || 'Cliente';
+        const list = Array.isArray(orders) ? orders.map(o => {
+            const title = String(o?.title || 'Demanda');
+            const category = o?.category ? ' <span style="color:#6b7280;">(' + String(o.category) + ')</span>' : '';
+            return '<li style="margin:0 0 8px 0;color:#1f2937;font-size:14px;line-height:1.4;"><strong>' + title + '</strong>' + category + '</li>';
+        }).join('') : '';
+        const html = `
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head><body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,sans-serif;"><table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f4f4f4;padding:20px 0;"><tr><td align="center"><table cellpadding="0" cellspacing="0" border="0" width="600" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 4px rgba(0,0,0,0.1);"><tr><td style="background-color:#ffffff;padding:36px 40px 26px 40px;text-align:center;border-bottom:3px solid #4f46e5;"><img src="cid:cotaja-logo" alt="Cotaja" style="max-width:220px;height:auto;display:block;margin:0 auto;" /></td></tr><tr><td style="padding:32px 40px 10px 40px;"><h2 style="margin:0 0 14px 0;color:#4f46e5;font-size:22px;text-align:center;">Solicitação de Orçamento</h2><p style="margin:0 0 12px 0;color:#4b5563;font-size:15px;line-height:1.6;">Olá <strong>${providerName}</strong>,</p><p style="margin:0;color:#4b5563;font-size:15px;line-height:1.6;">O cliente <strong>${clientName}</strong> solicitou orçamento para as demandas abaixo:</p></td></tr><tr><td style="padding:0 40px 20px 40px;"><table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f9fafb;border-left:4px solid #4f46e5;border-radius:4px;"><tr><td style="padding:18px 18px 10px 18px;"><ul style="margin:0;padding-left:18px;">${list}</ul></td></tr></table></td></tr><tr><td style="padding:0 40px 24px 40px;"><p style="margin:0;color:#4b5563;font-size:14px;line-height:1.6;">Acesse o app para responder essa solicitação.</p></td></tr><tr><td style="background-color:#1f2937;padding:26px 40px;text-align:center;"><p style="margin:0;color:#9ca3af;font-size:11px;line-height:1.4;">Este é um email automático, por favor não responda.</p></td></tr></table></td></tr></table></body></html>
+        `.trim();
+        await this.transporter.sendMail({
+            from: `"${process.env.MAIL_FROM_NAME || 'Cotaja'}" <${process.env.MAIL_FROM_ADDRESS || process.env.MAIL_USERNAME || process.env.MAIL_USER}>`,
+            to: provider.email,
+            subject: `Solicitação de orçamento de ${clientName}`,
+            html,
+            attachments: [{ filename: 'logo.png', path: path.join(__dirname, '../../assets/images/logo.png'), cid: 'cotaja-logo' }]
+        });
+        console.log(`📧 Email de solicitação de orçamento enviado para ${provider.email}`);
+        return { success: true };
+    }
+
     /**
      * Template HTML para notificação de proposta aceita
      */
     getProposalAcceptedTemplate(order, proposal, provider) {
-        const priceFormatted = parseFloat(proposal.price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const priceFormatted = Number.parseFloat(proposal.price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const providerName = provider?.name || 'Prestador';
 
         return `
@@ -629,7 +651,7 @@ class EmailService {
      * Template HTML para notificação de pedido excluído (mesmo estilo do email de registro)
      */
     getOrderDeletedTemplate(order, provider) {
-        const budgetFormatted = order.budget ? `R$ ${parseFloat(order.budget).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Não informado';
+        const budgetFormatted = order.budget ? `R$ ${Number.parseFloat(order.budget).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Não informado';
 
         return `
 <!DOCTYPE html>

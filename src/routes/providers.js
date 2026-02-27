@@ -1,6 +1,7 @@
 const express=require('express');
 const router=express.Router();
 const ratingController=require('../controllers/RatingController');
+const quoteController=require('../controllers/ProviderQuoteController');
 const { authenticateToken, requireClient }=require('../middlewares/auth');
 const multer=require('multer');
 const path=require('node:path');
@@ -8,4 +9,5 @@ const upload=multer({dest:path.join(__dirname,'../../uploads/temp/'),limits:{fil
 router.use(authenticateToken);
 router.post('/:providerId/ratings',(req,res,next)=>{const m=upload.array('attachments',10);m(req,res,(err)=>{if(err){return res.status(400).json({success:false,message:'Erro ao processar arquivos: '+err.message});}next();});},requireClient,ratingController.create);
 router.get('/:providerId/ratings',ratingController.index);
+router.post('/:providerId/request-quote',requireClient,quoteController.requestQuote);
 module.exports=router;

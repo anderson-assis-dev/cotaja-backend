@@ -170,7 +170,7 @@ async function sendWelcomeEmail(user, activationToken) {
 class AuthController {
     async register(req, res) {
         try {
-            const { name, email, phone, password, profile_type, fcm_token, device_platform, mother_name, birth_date } = req.body;
+            const { name, email, phone, password, profile_type, fcm_token, device_platform, mother_name, birth_date, address, zip_code, latitude, longitude } = req.body;
 
             console.log('📝 [BACKEND/REGISTER] Nome:', name);
             console.log('📧 [BACKEND/REGISTER] Email:', email);
@@ -195,6 +195,10 @@ class AuthController {
                 profile_type: profile_type || 'client',
                 mother_name: mother_name || null,
                 birth_date: birth_date || null,
+                address: address || null,
+                zip_code: zip_code || null,
+                latitude: latitude || null,
+                longitude: longitude || null,
             };
 
             try {

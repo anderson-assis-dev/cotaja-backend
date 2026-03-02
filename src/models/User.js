@@ -44,8 +44,8 @@ class User {
             const activationToken = crypto.randomUUID();
 
             const [result] = await connection.execute(
-                `INSERT INTO users (uuid, name, email, phone, mother_name, birth_date, stripe_customer_id, password, profile_type, address, service_categories, fcm_token, device_platform, activate, activation_token, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+                `INSERT INTO users (uuid, name, email, phone, mother_name, birth_date, stripe_customer_id, password, profile_type, address, zip_code, latitude, longitude, service_categories, fcm_token, device_platform, activate, activation_token, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
                 [
                     uuid,
                     userData.name,
@@ -57,6 +57,9 @@ class User {
                     hashedPassword,
                     userData.profile_type || 'client',
                     userData.address || null,
+                    userData.zip_code || null,
+                    userData.latitude || null,
+                    userData.longitude || null,
                     userData.service_categories ? JSON.stringify(userData.service_categories) : null,
                     userData.fcm_token || null,
                     userData.device_platform || null,

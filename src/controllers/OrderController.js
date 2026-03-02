@@ -1063,6 +1063,35 @@ class OrderController {
             return res.status(500).json({ success: false, message: 'Erro ao confirmar agendamento' });
         }
     }
+
+    async myProviders(req, res) {
+        try {
+            const userId = req.user.id;
+            const connection = await pool.getConnection();
+            try {
+                const [rows] = await connection.execute(
+                    `SELECT DISTINCT u.id, u.name, u.email, u.phone, u.profile_type, u.avatar_base64, u.address, u.service_categories
+                     FROM orders o
+                     INNER JOIN users u ON o.provider_id = u.id
+                     WHERE o.client_id = ? AND o.provider_id IS NOT NULL AND o.status IN ('in_progress', 'completed')
+                     ORDER BY u.name ASC`,
+                    [userId]
+                );
+                const providers = rows.map(r => {
+                    if (r.service_categories && typeof r.service_categories === 'string') {
+                        try { r.service_categories = JSON.parse(r.service_categories); } catch { r.service_categories = []; }
+                    }
+                    return r;
+                });
+                return res.json({ success: true, data: providers });
+            } finally {
+                connection.release();
+            }
+        } catch (error) {
+            console.error('OrderController.myProviders error:', error);
+            return res.status(500).json({ success: false, message: 'Erro ao buscar prestadores.' });
+        }
+    }
 }
 
 module.exports = new OrderController();

@@ -48,6 +48,7 @@ router.post('/', (req, res, next) => {
 router.get('/available', orderController.available);
 router.get('/recent', orderController.recent);
 router.get('/stats', orderController.stats);
+router.get('/my-providers', orderController.myProviders);
 router.get('/:id', orderController.show);
 router.put('/:id', (req, res, next) => {
     console.log('📥 PUT /orders/:id recebido');

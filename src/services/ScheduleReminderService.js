@@ -10,10 +10,8 @@ class ScheduleReminderService {
     }
 
     start() {
-        // Check every 5 minutes for reminders that need to be sent
         console.log('⏰ Schedule reminder service started (checking every 5 min)');
         this.intervalId = setInterval(() => this.checkReminders(), 5 * 60 * 1000);
-        // Also run immediately on start
         this.checkReminders();
     }
 
@@ -29,7 +27,6 @@ class ScheduleReminderService {
         try {
             const now = moment();
 
-            // Find orders with confirmed schedules that need 1-day reminder
             const [dayReminders] = await connection.execute(
                 `SELECT * FROM orders
                  WHERE status = 'in_progress'
@@ -48,7 +45,6 @@ class ScheduleReminderService {
                 await this.sendReminder(order, '1d', connection);
             }
 
-            // Find orders that need 1-hour reminder
             const [hourReminders] = await connection.execute(
                 `SELECT * FROM orders
                  WHERE status = 'in_progress'
@@ -85,7 +81,6 @@ class ScheduleReminderService {
             const recipients = [client, provider].filter(u => u);
 
             for (const user of recipients) {
-                // Push notification
                 try {
                     if (user.fcm_token) {
                         const pushSvc = new PushNotificationService();
@@ -94,14 +89,17 @@ class ScheduleReminderService {
                             device: user.device_platform || 'ios',
                             title: `Lembrete de Serviço`,
                             message: `O serviço "${order.title}" está agendado para ${timeLabel} (${formattedDate})`,
-                            sound: 'default'
+                            sound: 'default',
+                            data: {
+                                type: 'schedule_reminder',
+                                order_id: String(order.id),
+                            },
                         });
                     }
                 } catch (pushError) {
                     console.error(`Erro ao enviar push de lembrete (${type}):`, pushError.message);
                 }
 
-                // Email
                 try {
                     await emailService.sendScheduleReminderNotification(order, user, formattedDate, type);
                 } catch (emailError) {
@@ -109,7 +107,6 @@ class ScheduleReminderService {
                 }
             }
 
-            // Mark reminder as sent
             const field = type === '1d' ? 'schedule_reminder_1d_sent' : 'schedule_reminder_1h_sent';
             await connection.execute(
                 `UPDATE orders SET ${field} = 1 WHERE id = ?`,

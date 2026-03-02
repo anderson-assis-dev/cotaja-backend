@@ -4,7 +4,6 @@ const User = require('../models/User');
 const PushNotificationService = require('../services/PushNotificationService');
 
 class MessageController {
-    // List messages for an order
     async index(req, res) {
         try {
             const { orderId } = req.params;
@@ -16,17 +15,14 @@ class MessageController {
                 return res.status(404).json({ success: false, message: 'Pedido não encontrado' });
             }
 
-            // Only client or assigned provider can see messages
             if (order.client_id !== user.id && order.provider_id !== user.id) {
                 return res.status(403).json({ success: false, message: 'Acesso negado' });
             }
 
-            // Order must be in_progress
             if (order.status !== Order.STATUS_IN_PROGRESS) {
                 return res.status(400).json({ success: false, message: 'Chat disponível apenas para pedidos em andamento' });
             }
 
-            // Mark messages as read for this user
             await Message.markAsRead(orderId, user.id);
 
             const result = await Message.findByOrder(orderId, { page: parseInt(page), limit: parseInt(limit) });
@@ -46,7 +42,6 @@ class MessageController {
         }
     }
 
-    // Send a message
     async store(req, res) {
         try {
             const { orderId } = req.params;
@@ -62,7 +57,6 @@ class MessageController {
                 return res.status(404).json({ success: false, message: 'Pedido não encontrado' });
             }
 
-            // Only client or assigned provider can send messages
             if (order.client_id !== user.id && order.provider_id !== user.id) {
                 return res.status(403).json({ success: false, message: 'Acesso negado' });
             }
@@ -71,7 +65,6 @@ class MessageController {
                 return res.status(400).json({ success: false, message: 'Chat disponível apenas para pedidos em andamento' });
             }
 
-            // Determine receiver
             const receiverId = user.id === order.client_id ? order.provider_id : order.client_id;
 
             const message = await Message.create({
@@ -81,7 +74,6 @@ class MessageController {
                 content: content.trim()
             });
 
-            // Send push notification to receiver
             try {
                 const receiver = await User.findById(receiverId);
                 const sender = await User.findById(user.id);
@@ -118,7 +110,6 @@ class MessageController {
         }
     }
 
-    // Get unread count
     async unreadCount(req, res) {
         try {
             const { orderId } = req.params;

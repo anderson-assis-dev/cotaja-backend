@@ -32,7 +32,6 @@ class OrderController {
                 });
             }
 
-            // Simple pagination simulation (in production, implement proper pagination)
             const startIndex = (page - 1) * limit;
             const endIndex = startIndex + parseInt(limit);
             const paginatedOrders = orders.slice(startIndex, endIndex);
@@ -72,7 +71,6 @@ class OrderController {
 
             const { title, description, category, budget, deadline, address, street, number, complement, neighborhood, city, state, zip_code, latitude, longitude } = req.body;
 
-            // Build full address from structured fields if not provided
             let fullAddress = address;
             if (!fullAddress && street) {
                 const parts = [street];
@@ -94,7 +92,6 @@ class OrderController {
             let finalState = state ? state.substring(0, 2).toUpperCase() : null;
             let finalZipCode = zip_code || null;
 
-            // Geocoding only if coordinates are missing
             if (fullAddress && (!finalLat || !finalLng)) {
                 try {
                     console.log('🗺️ Forward geocoding endereço:', fullAddress);
@@ -130,7 +127,6 @@ class OrderController {
 
             const t1 = Date.now();
 
-            // Process attachments if any
             let attachments = null;
             if (req.files && req.files.length > 0) {
                 try {
@@ -166,8 +162,6 @@ class OrderController {
             const t3 = Date.now();
             console.log(`✅ Pedido #${order.id} criado — total: ${t3 - t0}ms (geocode: ${t1 - t0}ms, files: ${t2 - t1}ms, db: ${t3 - t2}ms)`);
 
-            // ── RESPONSE IMEDIATO — sem base64 no corpo ──
-            // Retorna o pedido sem os dados pesados (base64) dos attachments
             const responseOrder = { ...order };
             if (responseOrder.attachments && Array.isArray(responseOrder.attachments)) {
                 responseOrder.attachments = responseOrder.attachments.map(att => {
@@ -181,7 +175,7 @@ class OrderController {
                         const { data, ...rest } = att;
                         return rest;
                     });
-                } catch (e) { /* keep as-is */ }
+                } catch (e) {  }
             }
 
             res.status(201).json({
@@ -190,7 +184,6 @@ class OrderController {
                 data: responseOrder
             });
 
-            // ── Background: notificações + emails (já respondeu ao cliente) ──
             notificationService.notifyProvidersAboutNewOrder(order).catch(error => {
                 console.error('❌ Erro notificações (background):', error.message);
             });
@@ -221,7 +214,6 @@ class OrderController {
                 });
             }
 
-            // Check permissions
             if (user.isClient() && order.client_id !== user.id) {
                 return res.status(403).json({
                     success: false,
@@ -229,7 +221,6 @@ class OrderController {
                 });
             }
 
-            // Providers can view orders they own OR open orders (for detail view)
             if (user.isProvider() && order.provider_id !== user.id && order.status !== 'open') {
                 return res.status(403).json({
                     success: false,
@@ -263,7 +254,6 @@ class OrderController {
                 });
             }
 
-            // Check permissions
             if (user.isClient() && order.client_id !== user.id) {
                 return res.status(403).json({
                     success: false,
@@ -280,7 +270,6 @@ class OrderController {
                 }
             });
 
-            // Gerenciar anexos
             let existingAttachments = [];
             if (order.attachments) {
                 try {
@@ -292,7 +281,6 @@ class OrderController {
                 }
             }
 
-            // Filtrar anexos removidos pelo cliente
             let removedPaths = [];
             if (req.body.removedAttachments) {
                 try {
@@ -304,19 +292,16 @@ class OrderController {
             }
 
             if (removedPaths.length > 0) {
-                // Collect file paths to delete from disk
                 const filesToDelete = [];
                 existingAttachments = existingAttachments.filter(att => {
                     const attId = att.filename || att.original_name || att.path || '';
                     if (removedPaths.includes(attId)) {
-                        // Track path for disk cleanup
                         if (att.path) filesToDelete.push(att.path);
                         return false;
                     }
                     return true;
                 });
 
-                // Delete removed files from disk
                 if (filesToDelete.length > 0) {
                     fileUploadService.deleteFiles(filesToDelete).catch(err => {
                         console.error('⚠️ Erro ao deletar arquivos removidos:', err);
@@ -326,7 +311,6 @@ class OrderController {
                 console.log('📎 Anexos restantes após remoção:', existingAttachments.length);
             }
 
-            // Processar novos anexos se houver
             let newAttachments = [];
             if (req.files && req.files.length > 0) {
                 const fileUploadService = require('../services/FileUploadService');
@@ -340,7 +324,6 @@ class OrderController {
                 console.log('📎 Novos anexos processados:', newAttachments.length);
             }
 
-            // Atualizar anexos se houve remoção ou adição
             if (removedPaths.length > 0 || newAttachments.length > 0 || req.files) {
                 const allAttachments = [...existingAttachments, ...newAttachments];
                 updateData.attachments = JSON.stringify(allAttachments);
@@ -377,7 +360,6 @@ class OrderController {
                 });
             }
 
-            // Check permissions
             if (user.isClient() && order.client_id !== user.id) {
                 return res.status(403).json({
                     success: false,
@@ -385,7 +367,6 @@ class OrderController {
                 });
             }
 
-            // Check if order can be deleted (only open or stopped orders)
             if (order.status !== Order.STATUS_OPEN && order.status !== Order.STATUS_STOPPED) {
                 return res.status(400).json({
                     success: false,
@@ -393,11 +374,9 @@ class OrderController {
                 });
             }
 
-            // Get proposals for this order before deletion
             const proposals = await Proposal.findByOrder(id);
             console.log(`📧 Pedido tem ${proposals.length} proposta(s)`);
 
-            // Get provider details for each proposal
             const providersWithProposals = [];
             for (const proposal of proposals) {
                 const provider = await User.findById(proposal.provider_id);
@@ -406,7 +385,6 @@ class OrderController {
                 }
             }
 
-            // Delete attachments from filesystem
             if (order.attachments) {
                 try {
                     const attachments = JSON.parse(order.attachments);
@@ -420,11 +398,9 @@ class OrderController {
 
             await order.delete();
 
-            // Send notifications to providers who submitted proposals
             if (providersWithProposals.length > 0) {
                 console.log(`📧 Enviando notificações para ${providersWithProposals.length} prestador(es)`);
 
-                // Send push notifications
                 try {
                     const providerTokens = providersWithProposals
                         .filter(p => p.fcm_token)
@@ -447,7 +423,6 @@ class OrderController {
                     console.error('Erro ao enviar push notifications:', error);
                 }
 
-                // Send emails (fire-and-forget, não bloqueia a response)
                 emailService.sendOrderDeletedToProviders(order, providersWithProposals).catch(error => {
                     console.error('❌ Erro ao enviar emails de exclusão (background):', error.message);
                 });
@@ -479,7 +454,6 @@ class OrderController {
                 });
             }
 
-            // Check permissions - only the order owner can stop/resume
             if (order.client_id !== user.id) {
                 return res.status(403).json({
                     success: false,
@@ -487,7 +461,6 @@ class OrderController {
                 });
             }
 
-            // Toggle: open → stopped, stopped → open
             if (order.status === Order.STATUS_OPEN) {
                 await order.update({ status: Order.STATUS_STOPPED });
                 return res.json({
@@ -528,16 +501,48 @@ class OrderController {
                 });
             }
 
-            const { category, cep, search, page = 1, limit = 10 } = req.query;
+            const { category, cep, search, page = 1, limit = 10, latitude, longitude } = req.query;
 
-            const orders = await Order.findOpen({
-                category,
-                cep,
-                search,
-                withRelations: true
-            });
+            const providerLat = latitude ? parseFloat(latitude) : (user.latitude ? parseFloat(user.latitude) : null);
+            const providerLng = longitude ? parseFloat(longitude) : (user.longitude ? parseFloat(user.longitude) : null);
 
-            // Simple pagination simulation
+            if (latitude && longitude) {
+                const connection = await require('../config/database').pool.getConnection();
+                try {
+                    await connection.execute(
+                        'UPDATE users SET latitude = ?, longitude = ? WHERE id = ?',
+                        [parseFloat(latitude), parseFloat(longitude), user.id]
+                    );
+                } finally {
+                    connection.release();
+                }
+            }
+
+            let orders = [];
+            const radii = [50, 100, 200];
+
+            for (const radiusKm of radii) {
+                orders = await Order.findOpen({
+                    category,
+                    cep,
+                    search,
+                    latitude: providerLat,
+                    longitude: providerLng,
+                    radiusKm,
+                    withRelations: true,
+                });
+                if (orders.length > 0) break;
+            }
+
+            if (orders.length === 0) {
+                orders = await Order.findOpen({
+                    category,
+                    cep,
+                    search,
+                    withRelations: true,
+                });
+            }
+
             const startIndex = (page - 1) * limit;
             const endIndex = startIndex + parseInt(limit);
             const paginatedOrders = orders.slice(startIndex, endIndex);
@@ -549,13 +554,6 @@ class OrderController {
                 last_page: Math.ceil(orders.length / limit),
                 data: paginatedOrders
             };
-
-            // Debug log
-            if (paginatedOrders.length > 0) {
-                console.log('📤 Enviando pedidos - First order proposals:', paginatedOrders[0]?.proposals?.length || 0);
-            } else {
-                console.log('📤 Enviando pedidos - nenhum resultado');
-            }
 
             return res.json({
                 success: true,
@@ -583,7 +581,6 @@ class OrderController {
                 });
             }
 
-            // Check if user is the client
             if (order.client_id !== user.id) {
                 return res.status(403).json({
                     success: false,
@@ -591,7 +588,6 @@ class OrderController {
                 });
             }
 
-            // Check if order is open
             if (order.status !== Order.STATUS_OPEN) {
                 return res.status(400).json({
                     success: false,
@@ -599,7 +595,6 @@ class OrderController {
                 });
             }
 
-            // Check if auction is already started
             if (order.auction_started_at) {
                 return res.status(400).json({
                     success: false,
@@ -685,10 +680,8 @@ class OrderController {
 
     async sendNewOrderEmails(order) {
         try {
-            // Find providers that work with the order category
             const providers = await User.findProvidersByCategory(order.category);
 
-            // Create transporter
             const mailPort = parseInt(process.env.MAIL_PORT) || 465;
             const transporter = nodemailer.createTransport({
                 host: process.env.MAIL_HOST || 'smtp.gmail.com',
@@ -744,7 +737,6 @@ class OrderController {
         }
     }
 
-    // Cancel an in-progress order (client or provider)
     async cancel(req, res) {
         try {
             const { id } = req.params;
@@ -763,12 +755,10 @@ class OrderController {
                 return res.status(404).json({ success: false, message: 'Pedido não encontrado' });
             }
 
-            // Check permissions — only client or assigned provider
             if (order.client_id !== user.id && order.provider_id !== user.id) {
                 return res.status(403).json({ success: false, message: 'Acesso negado' });
             }
 
-            // Can only cancel open or in_progress orders
             if (order.status !== Order.STATUS_OPEN && order.status !== Order.STATUS_IN_PROGRESS) {
                 return res.status(400).json({
                     success: false,
@@ -785,7 +775,6 @@ class OrderController {
                     [Order.STATUS_CANCELLED, reason.trim(), user.id, id]
                 );
 
-                // If there was an accepted proposal, update it too
                 if (order.accepted_proposal_id) {
                     await connection.execute(
                         'UPDATE proposals SET status = ?, updated_at = NOW() WHERE id = ?',
@@ -801,7 +790,6 @@ class OrderController {
                 connection.release();
             }
 
-            // Determine who to notify (the other party)
             const isClient = user.id === order.client_id;
             const otherUserId = isClient ? order.provider_id : order.client_id;
             const cancellerRole = isClient ? 'cliente' : 'prestador';
@@ -810,7 +798,6 @@ class OrderController {
                 const otherUser = await User.findById(otherUserId);
 
                 if (otherUser) {
-                    // Push notification
                     try {
                         if (otherUser.fcm_token) {
                             const pushSvc = new PushNotificationService();
@@ -827,12 +814,10 @@ class OrderController {
                         console.error('Erro ao enviar push de cancelamento:', pushError.message);
                     }
 
-                    // Email notification (fire-and-forget, não bloqueia a response)
                     emailService.sendOrderCancelledNotification(order, otherUser, user, reason.trim())
                         .then(() => console.log(`📧 Email de cancelamento enviado para ${otherUser.email}`))
                         .catch(emailError => console.error('❌ Erro ao enviar email de cancelamento (background):', emailError.message));
 
-                    // DB notification
                     try {
                         const Notification = require('../models/Notification');
                         await Notification.create({
@@ -863,7 +848,6 @@ class OrderController {
         }
     }
 
-    // Schedule a date/time for the service
     async schedule(req, res) {
         try {
             const { id } = req.params;
@@ -925,14 +909,12 @@ class OrderController {
                 connection.release();
             }
 
-            // Notify the other party
             const otherUserId = isClient ? order.provider_id : order.client_id;
             if (otherUserId) {
                 const otherUser = await User.findById(otherUserId);
                 const formattedDate = scheduledMoment.format('DD/MM/YYYY [às] HH:mm');
 
                 if (otherUser) {
-                    // Push
                     try {
                         if (otherUser.fcm_token) {
                             const pushSvc = new PushNotificationService();
@@ -948,7 +930,6 @@ class OrderController {
                         console.error('Erro ao enviar push de agendamento:', pushError.message);
                     }
 
-                    // DB notification
                     try {
                         const Notification = require('../models/Notification');
                         await Notification.create({
@@ -981,7 +962,6 @@ class OrderController {
         }
     }
 
-    // Confirm a proposed schedule
     async confirmSchedule(req, res) {
         try {
             const { id } = req.params;
@@ -1013,11 +993,9 @@ class OrderController {
                 connection.release();
             }
 
-            // Re-read to check if both confirmed
             const refreshedOrder = await Order.findById(id, true);
             const bothConfirmed = refreshedOrder.schedule_confirmed_by_client && refreshedOrder.schedule_confirmed_by_provider;
 
-            // Notify the other party
             const otherUserId = isClient ? order.provider_id : order.client_id;
             const formattedDate = moment(order.scheduled_date).format('DD/MM/YYYY [às] HH:mm');
 
@@ -1044,7 +1022,6 @@ class OrderController {
                         console.error('Erro ao enviar push de confirmação:', pushError.message);
                     }
 
-                    // DB notification
                     try {
                         const Notification = require('../models/Notification');
                         await Notification.create({
@@ -1062,7 +1039,6 @@ class OrderController {
                         console.error('Erro ao criar notificação de confirmação:', notifError.message);
                     }
 
-                    // Send email to both if both confirmed (fire-and-forget, não bloqueia a response)
                     if (bothConfirmed) {
                         (async () => {
                             try {

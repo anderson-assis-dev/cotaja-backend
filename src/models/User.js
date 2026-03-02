@@ -9,7 +9,13 @@ class User {
         this.name = data.name || null;
         this.email = data.email || null;
         this.phone = data.phone || null;
+        this.mother_name = data.mother_name || null;
+        this.birth_date = data.birth_date || null;
+        this.stripe_customer_id = data.stripe_customer_id || null;
         this.address = data.address || null;
+        this.latitude = data.latitude || null;
+        this.longitude = data.longitude || null;
+        this.zip_code = data.zip_code || null;
         this.profile_type = data.profile_type || 'client';
         this.service_categories = data.service_categories || null;
         this.fcm_token = data.fcm_token || null;
@@ -31,23 +37,23 @@ class User {
     static async create(userData) {
         const connection = await pool.getConnection();
         try {
-            // Generate UUID
             const uuid = crypto.randomUUID();
 
-            // Hash password
             const hashedPassword = await bcrypt.hash(userData.password, 10);
 
-            // Generate activation token
             const activationToken = crypto.randomUUID();
 
             const [result] = await connection.execute(
-                `INSERT INTO users (uuid, name, email, phone, password, profile_type, address, service_categories, fcm_token, device_platform, activate, activation_token, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+                `INSERT INTO users (uuid, name, email, phone, mother_name, birth_date, stripe_customer_id, password, profile_type, address, service_categories, fcm_token, device_platform, activate, activation_token, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
                 [
                     uuid,
                     userData.name,
                     userData.email,
                     userData.phone || null,
+                    userData.mother_name || null,
+                    userData.birth_date || null,
+                    userData.stripe_customer_id || null,
                     hashedPassword,
                     userData.profile_type || 'client',
                     userData.address || null,
@@ -76,7 +82,6 @@ class User {
             if (rows.length === 0) return null;
 
             const userData = rows[0];
-            // Parse service_categories JSON
             if (userData.service_categories) {
                 userData.service_categories = JSON.parse(userData.service_categories);
             }
@@ -98,7 +103,6 @@ class User {
             if (rows.length === 0) return null;
 
             const userData = rows[0];
-            // Parse service_categories JSON
             if (userData.service_categories) {
                 userData.service_categories = JSON.parse(userData.service_categories);
             }
@@ -187,11 +191,7 @@ class User {
         }
     }
 
-    /**
-     * Get all providers with FCM tokens for push notifications
-     * @param {string} category - Optional: Filter by service category
-     * @returns {Array} Array of objects with {id, fcm_token, device_platform}
-     */
+
     static async getProviderTokens(category = null) {
         const connection = await pool.getConnection();
         try {
@@ -289,7 +289,6 @@ class User {
                 values
             );
 
-            // Update current instance
             Object.keys(updateData).forEach(key => {
                 if (updateData[key] !== undefined) {
                     this[key] = updateData[key];
@@ -346,7 +345,7 @@ class User {
 
     toObject() {
         const obj = { ...this };
-        delete obj.password; // Remove password from object representation
+        delete obj.password;
         return obj;
     }
 

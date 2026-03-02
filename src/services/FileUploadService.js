@@ -6,18 +6,16 @@ const NodeClam = require('clamscan');
 class FileUploadService {
     constructor() {
         this.uploadDir = path.join(__dirname, '../../uploads');
-        this.maxFileSize = 50 * 1024 * 1024; // 50MB
+        this.maxFileSize = 50 * 1024 * 1024;
 
-        // Initialize ClamAV scanner (optional - only if ClamAV is installed)
         this.clamav = null;
         this.initClamAV();
     }
 
     async initClamAV() {
         try {
-            // Try to initialize ClamAV
             this.clamav = await new NodeClam().init({
-                removeInfected: true, // Remove infected files automatically
+                removeInfected: true,
                 quarantineInfected: false,
                 scanLog: null,
                 debugMode: false,
@@ -38,22 +36,16 @@ class FileUploadService {
         }
     }
 
-    /**
-     * Create storage configuration for multer
-     * Files are organized by user email and order title
-     */
+    
     createStorage(clientEmail, orderTitle) {
         return multer.diskStorage({
             destination: async (req, file, cb) => {
                 try {
-                    // Sanitize email and order title for folder names
                     const sanitizedEmail = this.sanitizeForFilename(clientEmail);
                     const sanitizedTitle = this.sanitizeForFilename(orderTitle);
 
-                    // Create folder structure: uploads/email/order_title/
                     const uploadPath = path.join(this.uploadDir, sanitizedEmail, sanitizedTitle);
 
-                    // Create directories if they don't exist
                     await fs.mkdir(uploadPath, { recursive: true });
 
                     cb(null, uploadPath);
@@ -62,7 +54,6 @@ class FileUploadService {
                 }
             },
             filename: (req, file, cb) => {
-                // Generate unique filename: timestamp_originalname
                 const uniqueSuffix = Date.now() + '_' + Math.round(Math.random() * 1E9);
                 const ext = path.extname(file.originalname);
                 const basename = path.basename(file.originalname, ext);
@@ -73,25 +64,19 @@ class FileUploadService {
         });
     }
 
-    /**
-     * File filter to validate file types
-     */
+    
     fileFilter(req, file, cb) {
-        // Allowed mime types
         const allowedMimeTypes = [
-            // Images
             'image/jpeg',
             'image/jpg',
             'image/png',
             'image/gif',
             'image/webp',
-            // Videos
             'video/mp4',
             'video/mpeg',
             'video/quicktime',
             'video/x-msvideo',
             'video/webm',
-            // Documents
             'application/pdf',
             'application/msword',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -107,23 +92,19 @@ class FileUploadService {
         }
     }
 
-    /**
-     * Create multer upload middleware
-     */
+    
     createUploadMiddleware(clientEmail, orderTitle) {
         return multer({
             storage: this.createStorage(clientEmail, orderTitle),
             fileFilter: this.fileFilter,
             limits: {
                 fileSize: this.maxFileSize,
-                files: 10 // Maximum 10 files per upload
+                files: 10
             }
         });
     }
 
-    /**
-     * Scan file for viruses using ClamAV
-     */
+    
     async scanFileForVirus(filePath) {
         if (!this.clamav) {
             console.log('⚠️  Virus scanning skipped - ClamAV not available');
@@ -137,7 +118,6 @@ class FileUploadService {
                 console.log(`🦠 Virus detected in file: ${filePath}`);
                 console.log(`   Viruses: ${viruses.join(', ')}`);
 
-                // Delete infected file
                 try {
                     await fs.unlink(filePath);
                     console.log('🗑️  Infected file deleted');
@@ -149,22 +129,16 @@ class FileUploadService {
             return { isInfected, viruses };
         } catch (error) {
             console.error('Error scanning file for viruses:', error);
-            // Don't throw error - allow upload to continue even if scan fails
             return { isInfected: false, viruses: [], error: error.message };
         }
     }
 
-    /**
-     * Process uploaded files — images are converted to base64 (stored in DB),
-     * videos and documents are saved to disk (served via /uploads/).
-     */
+    
     async processUploadedFiles(files, clientEmail, orderTitle) {
-        // Create organized directory for videos/documents: uploads/orders/{email}/{order_title}/
         const sanitizedEmail = this.sanitizeForFilename(clientEmail || 'unknown');
         const sanitizedTitle = this.sanitizeForFilename(orderTitle || 'order');
         const finalDir = path.join(this.uploadDir, 'orders', sanitizedEmail, sanitizedTitle);
 
-        // Only create dir if we have non-image files
         const hasNonImageFiles = files.some(f => f.mimetype && !f.mimetype.startsWith('image/'));
         if (hasNonImageFiles) {
             try {
@@ -175,19 +149,14 @@ class FileUploadService {
             }
         }
 
-        // Process ALL files in parallel
         const results = await Promise.all(files.map(file => this._processSingleFile(file, finalDir, sanitizedEmail, sanitizedTitle)));
 
-        return results.filter(Boolean); // remove nulls (failed/infected)
+        return results.filter(Boolean);
     }
 
-    /**
-     * Process a single uploaded file (image→base64, video/doc→disk)
-     * @private
-     */
+    
     async _processSingleFile(file, finalDir, sanitizedEmail, sanitizedTitle) {
         try {
-            // Determine file type based on mimetype
             let fileType = 'document';
             if (file.mimetype && file.mimetype.startsWith('image/')) {
                 fileType = 'image';
@@ -197,14 +166,12 @@ class FileUploadService {
 
             const mimeType = file.mimetype || 'application/octet-stream';
 
-            // IMAGES → convert to base64 and store in DB (no disk file)
             if (fileType === 'image') {
                 try {
                     const fileBuffer = await fs.readFile(file.path);
                     const base64Data = fileBuffer.toString('base64');
                     const dataUri = `data:${mimeType};base64,${base64Data}`;
 
-                    // Delete temp file — data is in base64 now
                     fs.unlink(file.path).catch(() => {});
 
                     const fileSizeKB = ((file.size || 0) / 1024).toFixed(0);
@@ -226,14 +193,12 @@ class FileUploadService {
                 }
             }
 
-            // VIDEOS & DOCUMENTS → save to disk, store path in DB
             const uniqueSuffix = Date.now() + '_' + Math.round(Math.random() * 1E9);
             const ext = path.extname(file.originalname || 'file');
             const basename = path.basename(file.originalname || 'file', ext);
             const sanitizedBasename = this.sanitizeForFilename(basename);
             const finalFilename = `${uniqueSuffix}_${sanitizedBasename}${ext}`;
 
-            // Move file from temp to permanent location
             const finalPath = path.join(finalDir, finalFilename);
 
             try {
@@ -265,29 +230,22 @@ class FileUploadService {
         }
     }
 
-    /**
-     * Sanitize string for use in filenames
-     * Replace special characters and spaces
-     */
+    
     sanitizeForFilename(str) {
         return str
             .toLowerCase()
-            .replace(/@/g, '_') // Replace @ with _
-            .replace(/[^a-z0-9_-]/g, '_') // Replace special chars with _
-            .replace(/_+/g, '_') // Replace multiple _ with single _
-            .replace(/^_|_$/g, ''); // Remove leading/trailing _
+            .replace(/@/g, '_')
+            .replace(/[^a-z0-9_-]/g, '_')
+            .replace(/_+/g, '_')
+            .replace(/^_|_$/g, '');
     }
 
-    /**
-     * Delete files from filesystem
-     * Handles both absolute and relative paths (e.g., "uploads/orders/...")
-     */
+    
     async deleteFiles(filePaths) {
         const results = [];
 
         for (let filePath of filePaths) {
             try {
-                // If relative path, resolve from project root
                 if (!path.isAbsolute(filePath)) {
                     filePath = path.resolve(filePath);
                 }
@@ -303,9 +261,7 @@ class FileUploadService {
         return results;
     }
 
-    /**
-     * Delete entire order folder
-     */
+    
     async deleteOrderFolder(clientEmail, orderTitle) {
         try {
             const sanitizedEmail = this.sanitizeForFilename(clientEmail);

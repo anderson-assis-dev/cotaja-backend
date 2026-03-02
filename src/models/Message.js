@@ -11,7 +11,6 @@ class Message {
         this.created_at = data.created_at || null;
         this.updated_at = data.updated_at || null;
 
-        // Relations
         this.sender = data.sender || null;
         this.receiver = data.receiver || null;
     }

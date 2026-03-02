@@ -32,7 +32,6 @@ class Order {
         this.schedule_reminder_1h_sent = data.schedule_reminder_1h_sent || 0;
         this.cancel_reason = data.cancel_reason || null;
         this.cancelled_by = data.cancelled_by || null;
-        // MySQL JSON columns may return as string — ensure it's parsed
         if (typeof data.attachments === 'string') {
             try {
                 this.attachments = JSON.parse(data.attachments);
@@ -45,7 +44,6 @@ class Order {
         this.created_at = data.created_at || null;
         this.updated_at = data.updated_at || null;
 
-        // Initialize relations as empty arrays
         this.proposals = [];
         this.client = null;
         this.provider = null;
@@ -115,17 +113,13 @@ class Order {
         }
     }
 
-    /**
-     * Batch load relations for multiple orders in just 2 queries
-     * instead of 3N sequential queries (N = number of orders)
-     */
+    
     static async batchLoadRelations(orders, connection) {
         if (!orders.length) return;
 
         const orderIds = orders.map(o => o.id);
         const placeholders = orderIds.map(() => '?').join(',');
 
-        // 1) Batch load all proposals + provider info for all orders
         const [proposalRows] = await connection.execute(
             `SELECT p.*, u.name as provider_name, u.email as provider_email, u.avatar_base64 as provider_avatar_base64
              FROM proposals p
@@ -140,7 +134,6 @@ class Order {
             proposalsByOrder[p.order_id].push(p);
         }
 
-        // 2) Batch load unique users (clients + providers)
         const userIds = new Set();
         for (const order of orders) {
             if (order.client_id) userIds.add(order.client_id);
@@ -159,7 +152,6 @@ class Order {
             }
         }
 
-        // Assign to each order
         for (const order of orders) {
             order.proposals = proposalsByOrder[order.id] || [];
             order.client = order.client_id ? (usersMap[order.client_id] || null) : null;
@@ -255,8 +247,6 @@ class Order {
             if (options.cep) {
                 const cep = options.cep.replace(/[^0-9]/g, '');
                 if (cep.length >= 5) {
-                    // Busca por intervalo numérico: converte CEP em número
-                    // e busca demandas com CEP dentro de ±3.000.000 (mesma região/estado)
                     const cepNum = parseInt(cep.padEnd(8, '0'), 10);
                     const range = 3000000;
                     query += ' AND zip_code IS NOT NULL AND zip_code != \'\''
@@ -271,10 +261,8 @@ class Order {
                 params.push(term, term);
             }
 
-            // Filter by proximity if coordinates provided
             if (options.latitude && options.longitude) {
-                // Haversine formula approximation: ~111km per degree
-                const radiusKm = options.radiusKm || 50; // default 50km radius
+                const radiusKm = options.radiusKm || 50;
                 const latDiff = radiusKm / 111;
                 const lngDiff = radiusKm / (111 * Math.cos(options.latitude * Math.PI / 180));
                 query += ' AND latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?';
@@ -387,7 +375,6 @@ class Order {
                 values
             );
 
-            // Update current instance
             Object.keys(updateData).forEach(key => {
                 if (updateData[key] !== undefined) {
                     this[key] = updateData[key];
@@ -419,7 +406,6 @@ class Order {
         }
 
         try {
-            // Load client
             if (this.client_id) {
                 const [clientRows] = await connection.execute(
                     'SELECT id, name, email, phone, profile_type, avatar_base64 FROM users WHERE id = ?',
@@ -428,7 +414,6 @@ class Order {
                 this.client = clientRows[0] || null;
             }
 
-            // Load provider
             if (this.provider_id) {
                 const [providerRows] = await connection.execute(
                     'SELECT id, name, email, phone, profile_type, avatar_base64 FROM users WHERE id = ?',
@@ -437,7 +422,6 @@ class Order {
                 this.provider = providerRows[0] || null;
             }
 
-            // Load proposals
             const [proposalRows] = await connection.execute(
                 'SELECT p.*, u.name as provider_name, u.email as provider_email, u.avatar_base64 as provider_avatar_base64 FROM proposals p LEFT JOIN users u ON p.provider_id = u.id WHERE p.order_id = ?',
                 [this.id]
@@ -527,15 +511,10 @@ class Order {
         };
     }
 
-    /**
-     * Lightweight serialization for list endpoints.
-     * Strips the heavy base64 `data` field from image attachments
-     * to keep the response small and fast.
-     */
+    
     toListJSON() {
         const lightAttachments = Array.isArray(this.attachments)
             ? this.attachments.map(att => {
-                // Remove the data field (base64 payload) — keep everything else
                 const { data, ...rest } = att;
                 return rest;
             })

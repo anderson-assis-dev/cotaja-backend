@@ -10,12 +10,10 @@ const {
     fcmTokenValidation
 } = require('../utils/validation');
 
-// Public routes
 router.post('/register', registerValidation, authController.register);
 router.post('/login', loginValidation, authController.login);
 router.get('/activate/:token', authController.activate.bind(authController));
 
-// Protected routes
 router.post('/logout', authenticateToken, authController.logout);
 router.get('/me', authenticateToken, authController.me);
 router.put('/profile', authenticateToken, updateProfileValidation, authController.updateProfile);

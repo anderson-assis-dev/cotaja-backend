@@ -2,11 +2,10 @@ const User = require('../models/User');
 const { generateToken } = require('../utils/jwt');
 const nodemailer = require('nodemailer');
 const path = require('path');
+const { createCustomer } = require('../services/StripeService');
 
-// Helper function to send welcome email
 async function sendWelcomeEmail(user, activationToken) {
     try {
-        // Create transporter for Gmail
         const mailPort = parseInt(process.env.MAIL_PORT) || 465;
         const transporter = nodemailer.createTransport({
             host: process.env.MAIL_HOST || 'smtp.gmail.com',
@@ -29,7 +28,6 @@ async function sendWelcomeEmail(user, activationToken) {
         const serverUrl = process.env.SERVER_URL || 'http://159.195.32.169:53000';
         const activationLink = `${serverUrl}/api/auth/activate/${activationToken}`;
 
-        // Send mail with embedded image
         await transporter.sendMail({
             from: `"${process.env.MAIL_FROM_NAME}" <${process.env.MAIL_FROM_ADDRESS}>`,
             to: user.email,
@@ -126,14 +124,13 @@ async function sendWelcomeEmail(user, activationToken) {
                                                 www.cotaja.io
                                             </p>
 
-                                            <div style="margin: 15px 0 0 0;">
-                                                <a href="https://instagram.com/cotaja" style="display: inline-block; margin: 0 8px;">
-                                                    <span style="color: #ff6b35; font-size: 20px;">📷</span>
-                                                </a>
-                                                <a href="https://linkedin.com/company/cotaja" style="display: inline-block; margin: 0 8px;">
-                                                    <span style="color: #ff6b35; font-size: 20px;">💼</span>
-                                                </a>
-                                            </div>
+                                            <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 15px auto 0 auto;"><tr>
+                                                <td align="center" valign="middle" style="padding: 0 4px;"><a href="https://www.instagram.com/reel/DUi9bWsDt4c/?igsh=YzJzdTNmeWo1MWRl" style="display:block;text-decoration:none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#E1306C" style="border-radius:8px;width:36px;height:36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="20" height="20" rx="5" stroke="white" stroke-width="2"/><circle cx="12" cy="12" r="4" stroke="white" stroke-width="2"/><circle cx="17.5" cy="6.5" r="1.5" fill="white"/></svg></td></tr></table></a></td>
+                                                <td align="center" valign="middle" style="padding: 0 4px;"><a href="https://kwai-video.com/p/CmdOV9wh" style="display:block;text-decoration:none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#FF8C00" style="border-radius:8px;width:36px;height:36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 4v16M6 12l8-8M6 12l8 8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 6l4 6-4 6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr></table></a></td>
+                                                <td align="center" valign="middle" style="padding: 0 4px;"><a href="https://www.tiktok.com/@cotaja.seu.market" style="display:block;text-decoration:none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#010101" style="border-radius:8px;width:36px;height:36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr></table></a></td>
+                                                <td align="center" valign="middle" style="padding: 0 4px;"><a href="https://www.facebook.com/share/1ArvGRTDmo/" style="display:block;text-decoration:none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#1877F2" style="border-radius:8px;width:36px;height:36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr></table></a></td>
+                                                <td align="center" valign="middle" style="padding: 0 4px;"><a href="https://youtube.com/@cotajaseumarketplacedeservicos" style="display:block;text-decoration:none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#FF0000" style="border-radius:8px;width:36px;height:36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46a2.78 2.78 0 0 0-1.95 1.96C1 8.12 1 12 1 12s0 3.88.46 5.58a2.78 2.78 0 0 0 1.95 1.95C5.12 20 12 20 12 20s6.88 0 8.59-.47a2.78 2.78 0 0 0 1.95-1.95C23 15.88 23 12 23 12s0-3.88-.46-5.58z" stroke="white" stroke-width="2"/><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02" fill="white"/></svg></td></tr></table></a></td>
+                                            </tr></table>
 
                                             <p style="margin: 20px 0 0 0; color: #6b7280; font-size: 11px; line-height: 1.4;">
                                                 Este é um email automático, por favor não responda a esta mensagem.<br>
@@ -173,7 +170,7 @@ async function sendWelcomeEmail(user, activationToken) {
 class AuthController {
     async register(req, res) {
         try {
-            const { name, email, phone, password, profile_type, fcm_token, device_platform } = req.body;
+            const { name, email, phone, password, profile_type, fcm_token, device_platform, mother_name, birth_date } = req.body;
 
             console.log('📝 [BACKEND/REGISTER] Nome:', name);
             console.log('📧 [BACKEND/REGISTER] Email:', email);
@@ -182,7 +179,6 @@ class AuthController {
             console.log('[SERVER] [BACKEND/REGISTER] Platform:', device_platform || 'NÃO INFORMADA');
             console.log('📦 [BACKEND/REGISTER] Body completo:', JSON.stringify(req.body, null, 2));
 
-            // Check if user already exists
             const existingUser = await User.findByEmail(email);
             if (existingUser) {
                 return res.status(422).json({
@@ -191,14 +187,27 @@ class AuthController {
                 });
             }
 
-            // Create user with profile_type and FCM token
             const userData = {
                 name,
                 email,
                 phone,
                 password,
                 profile_type: profile_type || 'client',
+                mother_name: mother_name || null,
+                birth_date: birth_date || null,
             };
+
+            try {
+                const stripeCustomer = await createCustomer({
+                    name,
+                    email,
+                    phone: phone || undefined,
+                    metadata: { profile_type: profile_type || 'client' },
+                });
+                userData.stripe_customer_id = stripeCustomer.id;
+            } catch (stripeError) {
+                console.error('Stripe customer creation failed (non-blocking):', stripeError.message);
+            }
 
             if (fcm_token) {
                 userData.fcm_token = fcm_token;
@@ -212,7 +221,6 @@ class AuthController {
                 console.log('✅ FCM token salvo no registro:', fcm_token.substring(0, 20) + '...');
             }
 
-            // Send welcome email with activation link (fire-and-forget, não bloqueia a response)
             sendWelcomeEmail(user, user.activation_token).catch(error => {
                 console.error('❌ Erro ao enviar e-mail de boas-vindas (background):', error.message);
             });
@@ -243,7 +251,6 @@ class AuthController {
             console.log('[SERVER] [BACKEND/LOGIN] Platform:', device_platform || 'NÃO INFORMADA');
             console.log('📦 [BACKEND/LOGIN] Body completo:', JSON.stringify(req.body, null, 2));
 
-            // Find user by email
             const user = await User.findByEmail(email);
             if (!user) {
                 return res.status(401).json({
@@ -252,7 +259,6 @@ class AuthController {
                 });
             }
 
-            // Verify password
             const isValidPassword = await user.verifyPassword(password);
             if (!isValidPassword) {
                 return res.status(401).json({
@@ -261,7 +267,6 @@ class AuthController {
                 });
             }
 
-            // Check if account is activated
             if (user.activate !== 1) {
                 return res.status(403).json({
                     success: false,
@@ -269,7 +274,6 @@ class AuthController {
                 });
             }
 
-            // Update FCM token if provided
             if (fcm_token) {
                 try {
                     await user.update({
@@ -280,13 +284,11 @@ class AuthController {
                     console.log(`✅ Platform: ${device_platform || 'não informada'}`);
                 } catch (error) {
                     console.error('❌ Erro ao atualizar FCM token no login:', error);
-                    // Don't fail login if FCM token update fails
                 }
             } else {
                 console.log('⚠️ Nenhum FCM token fornecido no login');
             }
 
-            // Generate token
             const token = generateToken({ userId: user.id });
 
             return res.json({
@@ -307,8 +309,6 @@ class AuthController {
     }
 
     async logout(req, res) {
-        // In JWT implementation, logout is handled on client side
-        // Server can optionally implement token blacklisting
         return res.json({
             success: true,
             message: 'Logout realizado com sucesso'
@@ -336,7 +336,6 @@ class AuthController {
         try {
             const updateData = {};
 
-            // Only include fields that are provided
             const allowedFields = ['name', 'phone', 'address', 'profile_type', 'service_categories'];
             allowedFields.forEach(field => {
                 if (req.body[field] !== undefined) {
@@ -368,11 +367,9 @@ class AuthController {
 
             const updateData = { profile_type };
 
-            // If provider and has service_categories, save them
             if (profile_type === 'provider' && service_categories !== undefined && service_categories !== null) {
                 updateData.service_categories = service_categories;
             } else if (profile_type === 'client') {
-                // If client, clear service_categories
                 updateData.service_categories = null;
             }
 
@@ -449,7 +446,6 @@ class AuthController {
                 return res.status(200).send(this._activationPage('Conta Já Ativa', 'Sua conta já está ativa. Você já pode fazer login no aplicativo.', true));
             }
 
-            // Activate the account
             await user.update({
                 activate: 1,
                 email_verified_at: new Date().toISOString().slice(0, 19).replace('T', ' '),

@@ -30,7 +30,6 @@ class ServiceController {
                 });
             }
 
-            // Validate images if provided
             if (images && (!Array.isArray(images) || images.length > 5)) {
                 return res.status(422).json({
                     success: false,
@@ -51,7 +50,6 @@ class ServiceController {
                 images: images || []
             });
 
-            // Notify all providers about the new service request
             this.notifyProviders(service, client_name, category);
 
             return res.status(201).json({
@@ -68,15 +66,11 @@ class ServiceController {
         }
     }
 
-    /**
-     * Notify all providers about a new service request
-     * This runs asynchronously and doesn't block the response
-     */
+    
     async notifyProviders(service, clientName, category) {
         try {
             console.log(`📢 Notifying providers about new service: ${service.title}`);
 
-            // Get all providers with FCM tokens (optionally filtered by category)
             const providers = await User.getProviderTokens(category);
 
             if (providers.length === 0) {
@@ -86,7 +80,6 @@ class ServiceController {
 
             console.log(`📱 Found ${providers.length} providers to notify`);
 
-            // Send notifications in parallel
             const notificationPromises = providers.map(provider => {
                 return sendPushNotification({
                     registration_id: provider.token,
@@ -108,7 +101,6 @@ class ServiceController {
 
         } catch (error) {
             console.error('❌ Error notifying providers:', error);
-            // Don't throw - we don't want to fail the service creation if notifications fail
         }
     }
 
@@ -128,7 +120,6 @@ class ServiceController {
                 });
             }
 
-            // Validate images if provided
             if (images && (!Array.isArray(images) || images.length > 5)) {
                 return res.status(422).json({
                     success: false,

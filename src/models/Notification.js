@@ -51,7 +51,6 @@ class Notification {
             if (rows.length === 0) return null;
 
             const notificationData = rows[0];
-            // Parse data JSON
             if (notificationData.data) {
                 notificationData.data = JSON.parse(notificationData.data);
             }
@@ -185,7 +184,6 @@ class Notification {
                 values
             );
 
-            // Update current instance
             Object.keys(updateData).forEach(key => {
                 if (updateData[key] !== undefined) {
                     this[key] = updateData[key];

@@ -1,14 +1,11 @@
 const { sendPushNotification, sendBulkNotifications, pushService } = require('../middlewares/pushNotification');
 
 class PushNotificationController {
-    /**
-     * Send a single push notification
-     */
+    
     async send(req, res) {
         try {
             const { registration_id, device, title, message, sound, image_url, production } = req.body;
 
-            // Validate required fields
             if (!registration_id || !device || !title || !message) {
                 return res.status(400).json({
                     success: false,
@@ -42,14 +39,11 @@ class PushNotificationController {
         }
     }
 
-    /**
-     * Send push notification to multiple devices
-     */
+    
     async sendBulk(req, res) {
         try {
             const { devices, title, message, sound, image_url } = req.body;
 
-            // Validate required fields
             if (!devices || !Array.isArray(devices) || !title || !message) {
                 return res.status(400).json({
                     success: false,
@@ -86,14 +80,11 @@ class PushNotificationController {
         }
     }
 
-    /**
-     * Send notification to specific user (all their devices)
-     */
+    
     async sendToUser(req, res) {
         try {
             const { user_id, title, message, sound, image_url } = req.body;
 
-            // Validate required fields
             if (!user_id || !title || !message) {
                 return res.status(400).json({
                     success: false,
@@ -122,9 +113,7 @@ class PushNotificationController {
         }
     }
 
-    /**
-     * Test push notification service
-     */
+    
     async test(req, res) {
         try {
             const { registration_id, device } = req.body;
@@ -160,9 +149,7 @@ class PushNotificationController {
         }
     }
 
-    /**
-     * Get push notification service status
-     */
+    
     async status(req, res) {
         try {
             const status = {

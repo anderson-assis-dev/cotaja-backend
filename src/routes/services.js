@@ -3,10 +3,8 @@ const router = express.Router();
 const serviceController = require('../controllers/ServiceController');
 const { authenticateToken } = require('../middlewares/auth');
 
-// All routes require authentication
 router.use(authenticateToken);
 
-// Service routes
 router.get('/', serviceController.index);
 router.get('/available', serviceController.available);
 router.post('/', serviceController.create);

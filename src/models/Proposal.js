@@ -221,7 +221,6 @@ class Proposal {
                 values
             );
 
-            // Update current instance
             Object.keys(updateData).forEach(key => {
                 if (updateData[key] !== undefined) {
                     this[key] = updateData[key];
@@ -253,7 +252,6 @@ class Proposal {
         }
 
         try {
-            // Load order
             if (this.order_id) {
                 const [orderRows] = await connection.execute(
                     'SELECT * FROM orders WHERE id = ?',
@@ -262,7 +260,6 @@ class Proposal {
                 this.order = orderRows[0] || null;
             }
 
-            // Load provider
             if (this.provider_id) {
                 const [providerRows] = await connection.execute(
                     'SELECT id, name, email, phone, profile_type, avatar_base64 FROM users WHERE id = ?',

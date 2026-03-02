@@ -21,9 +21,7 @@ class EmailService {
         });
     }
 
-    /**
-     * Notifica prestadores quando um pedido é excluído
-     */
+    
     async sendOrderDeletedToProviders(order, providers) {
         try {
             const emailPromises = providers.map(provider => {
@@ -58,9 +56,7 @@ class EmailService {
         }
     }
 
-    /**
-     * Notifica cliente quando recebe uma proposta
-     */
+    
     async sendNewProposalToClient(order, proposal, client, provider) {
         try {
             const html = this.getNewProposalTemplate(order, proposal, provider, client);
@@ -88,9 +84,7 @@ class EmailService {
         }
     }
 
-    /**
-     * Template HTML para notificação de nova proposta (mesmo estilo do email de registro)
-     */
+    
     getNewProposalTemplate(order, proposal, provider, client) {
         const priceFormatted = Number.parseFloat(proposal.price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const clientName = client?.name || 'Cliente';
@@ -215,15 +209,27 @@ class EmailService {
                         </td>
                     </tr>
 
-                    <!-- Footer -->
                     <tr>
                         <td style="background-color: #1f2937; padding: 30px 40px; text-align: center;">
                             <p style="margin: 0 0 10px 0; color: #ffffff; font-size: 14px;"><strong>COTAJA</strong></p>
                             <p style="margin: 0 0 15px 0; color: #9ca3af; font-size: 13px; line-height: 1.5;">contato@cotaja.io<br>www.cotaja.io</p>
-                            <div style="margin: 15px 0 0 0;">
-                                <a href="https://instagram.com/cotaja" style="display: inline-block; margin: 0 8px;"><span style="color: #ff6b35; font-size: 20px;">📷</span></a>
-                                <a href="https://linkedin.com/company/cotaja" style="display: inline-block; margin: 0 8px;"><span style="color: #ff6b35; font-size: 20px;">💼</span></a>
-                            </div>
+                            <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 15px auto 0 auto;"><tr>
+                                <td align="center" valign="middle" style="padding: 0 4px;">
+                                    <a href="https://www.instagram.com/reel/DUi9bWsDt4c/?igsh=YzJzdTNmeWo1MWRl" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#E1306C" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="20" height="20" rx="5" stroke="white" stroke-width="2"/><circle cx="12" cy="12" r="4" stroke="white" stroke-width="2"/><circle cx="17.5" cy="6.5" r="1.5" fill="white"/></svg></td></tr></table></a>
+                                </td>
+                                <td align="center" valign="middle" style="padding: 0 4px;">
+                                    <a href="https://kwai-video.com/p/CmdOV9wh" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#FF8C00" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 4v16M6 12l8-8M6 12l8 8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 6l4 6-4 6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr></table></a>
+                                </td>
+                                <td align="center" valign="middle" style="padding: 0 4px;">
+                                    <a href="https://www.tiktok.com/@cotaja.seu.market" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#010101" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr></table></a>
+                                </td>
+                                <td align="center" valign="middle" style="padding: 0 4px;">
+                                    <a href="https://www.facebook.com/share/1ArvGRTDmo/" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#1877F2" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr></table></a>
+                                </td>
+                                <td align="center" valign="middle" style="padding: 0 4px;">
+                                    <a href="https://youtube.com/@cotajaseumarketplacedeservicos" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#FF0000" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46a2.78 2.78 0 0 0-1.95 1.96C1 8.12 1 12 1 12s0 3.88.46 5.58a2.78 2.78 0 0 0 1.95 1.95C5.12 20 12 20 12 20s6.88 0 8.59-.47a2.78 2.78 0 0 0 1.95-1.95C23 15.88 23 12 23 12s0-3.88-.46-5.58z" stroke="white" stroke-width="2"/><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02" fill="white"/></svg></td></tr></table></a>
+                                </td>
+                            </tr></table>
                             <p style="margin: 20px 0 0 0; color: #6b7280; font-size: 11px; line-height: 1.4;">
                                 Este é um email automático, por favor não responda a esta mensagem.<br>
                                 Caso tenha dúvidas, entre em contato através do nosso suporte.
@@ -240,9 +246,7 @@ class EmailService {
         `.trim();
     }
 
-    /**
-     * Notifica prestador quando sua proposta é aceita
-     */
+    
     async sendProposalAcceptedToProvider(order, proposal, provider) {
         try {
             const html = this.getProposalAcceptedTemplate(order, proposal, provider);
@@ -270,9 +274,7 @@ class EmailService {
         }
     }
 
-    /**
-     * Notifica sobre cancelamento de pedido
-     */
+    
     async sendOrderCancelledNotification(order, recipient, canceller, reason) {
         try {
             const html = this.getOrderCancelledTemplate(order, recipient, canceller, reason);
@@ -299,9 +301,7 @@ class EmailService {
         }
     }
 
-    /**
-     * Notifica sobre agendamento confirmado por ambas as partes
-     */
+    
     async sendScheduleConfirmedNotification(order, client, provider, formattedDate) {
         try {
             const recipients = [client, provider].filter(u => u?.email);
@@ -333,9 +333,7 @@ class EmailService {
         }
     }
 
-    /**
-     * Envia lembrete de serviço agendado
-     */
+    
     async sendScheduleReminderNotification(order, recipient, formattedDate, reminderType) {
         try {
             const html = this.getScheduleReminderTemplate(order, recipient, formattedDate, reminderType);
@@ -385,9 +383,7 @@ class EmailService {
         return { success: true };
     }
 
-    /**
-     * Template HTML para notificação de proposta aceita
-     */
+    
     getProposalAcceptedTemplate(order, proposal, provider) {
         const priceFormatted = Number.parseFloat(proposal.price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const providerName = provider?.name || 'Prestador';
@@ -508,15 +504,27 @@ class EmailService {
                         </td>
                     </tr>
 
-                    <!-- Footer -->
                     <tr>
                         <td style="background-color: #1f2937; padding: 30px 40px; text-align: center;">
                             <p style="margin: 0 0 10px 0; color: #ffffff; font-size: 14px;"><strong>COTAJA</strong></p>
                             <p style="margin: 0 0 15px 0; color: #9ca3af; font-size: 13px; line-height: 1.5;">contato@cotaja.io<br>www.cotaja.io</p>
-                            <div style="margin: 15px 0 0 0;">
-                                <a href="https://instagram.com/cotaja" style="display: inline-block; margin: 0 8px;"><span style="color: #ff6b35; font-size: 20px;">📷</span></a>
-                                <a href="https://linkedin.com/company/cotaja" style="display: inline-block; margin: 0 8px;"><span style="color: #ff6b35; font-size: 20px;">💼</span></a>
-                            </div>
+                            <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 15px auto 0 auto;"><tr>
+                                <td align="center" valign="middle" style="padding: 0 4px;">
+                                    <a href="https://www.instagram.com/reel/DUi9bWsDt4c/?igsh=YzJzdTNmeWo1MWRl" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#E1306C" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="20" height="20" rx="5" stroke="white" stroke-width="2"/><circle cx="12" cy="12" r="4" stroke="white" stroke-width="2"/><circle cx="17.5" cy="6.5" r="1.5" fill="white"/></svg></td></tr></table></a>
+                                </td>
+                                <td align="center" valign="middle" style="padding: 0 4px;">
+                                    <a href="https://kwai-video.com/p/CmdOV9wh" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#FF8C00" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 4v16M6 12l8-8M6 12l8 8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 6l4 6-4 6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr></table></a>
+                                </td>
+                                <td align="center" valign="middle" style="padding: 0 4px;">
+                                    <a href="https://www.tiktok.com/@cotaja.seu.market" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#010101" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr></table></a>
+                                </td>
+                                <td align="center" valign="middle" style="padding: 0 4px;">
+                                    <a href="https://www.facebook.com/share/1ArvGRTDmo/" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#1877F2" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr></table></a>
+                                </td>
+                                <td align="center" valign="middle" style="padding: 0 4px;">
+                                    <a href="https://youtube.com/@cotajaseumarketplacedeservicos" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#FF0000" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46a2.78 2.78 0 0 0-1.95 1.96C1 8.12 1 12 1 12s0 3.88.46 5.58a2.78 2.78 0 0 0 1.95 1.95C5.12 20 12 20 12 20s6.88 0 8.59-.47a2.78 2.78 0 0 0 1.95-1.95C23 15.88 23 12 23 12s0-3.88-.46-5.58z" stroke="white" stroke-width="2"/><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02" fill="white"/></svg></td></tr></table></a>
+                                </td>
+                            </tr></table>
                             <p style="margin: 20px 0 0 0; color: #6b7280; font-size: 11px; line-height: 1.4;">
                                 Este é um email automático, por favor não responda a esta mensagem.<br>
                                 Caso tenha dúvidas, entre em contato através do nosso suporte.
@@ -533,9 +541,7 @@ class EmailService {
         `.trim();
     }
 
-    /**
-     * Template HTML para notificação de cancelamento
-     */
+    
     getOrderCancelledTemplate(order, recipient, canceller, reason) {
         const recipientName = recipient?.name || 'Usuário';
         const cancellerName = canceller?.name || 'Usuário';
@@ -573,9 +579,7 @@ class EmailService {
 </body></html>`.trim();
     }
 
-    /**
-     * Template HTML para agendamento confirmado
-     */
+    
     getScheduleConfirmedTemplate(order, recipient, formattedDate) {
         const recipientName = recipient?.name || 'Usuário';
 
@@ -610,9 +614,7 @@ class EmailService {
 </body></html>`.trim();
     }
 
-    /**
-     * Template HTML para lembrete de agendamento
-     */
+    
     getScheduleReminderTemplate(order, recipient, formattedDate, reminderType) {
         const recipientName = recipient?.name || 'Usuário';
         const timeLabel = reminderType === '1d' ? 'amanhã' : 'em 1 hora';
@@ -647,9 +649,7 @@ class EmailService {
 </body></html>`.trim();
     }
 
-    /**
-     * Template HTML para notificação de pedido excluído (mesmo estilo do email de registro)
-     */
+    
     getOrderDeletedTemplate(order, provider) {
         const budgetFormatted = order.budget ? `R$ ${Number.parseFloat(order.budget).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Não informado';
 
@@ -744,15 +744,27 @@ class EmailService {
                         </td>
                     </tr>
 
-                    <!-- Footer -->
                     <tr>
                         <td style="background-color: #1f2937; padding: 30px 40px; text-align: center;">
                             <p style="margin: 0 0 10px 0; color: #ffffff; font-size: 14px;"><strong>COTAJA</strong></p>
                             <p style="margin: 0 0 15px 0; color: #9ca3af; font-size: 13px; line-height: 1.5;">contato@cotaja.io<br>www.cotaja.io</p>
-                            <div style="margin: 15px 0 0 0;">
-                                <a href="https://instagram.com/cotaja" style="display: inline-block; margin: 0 8px;"><span style="color: #ff6b35; font-size: 20px;">📷</span></a>
-                                <a href="https://linkedin.com/company/cotaja" style="display: inline-block; margin: 0 8px;"><span style="color: #ff6b35; font-size: 20px;">💼</span></a>
-                            </div>
+                            <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 15px auto 0 auto;"><tr>
+                                <td align="center" valign="middle" style="padding: 0 4px;">
+                                    <a href="https://www.instagram.com/reel/DUi9bWsDt4c/?igsh=YzJzdTNmeWo1MWRl" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#E1306C" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="20" height="20" rx="5" stroke="white" stroke-width="2"/><circle cx="12" cy="12" r="4" stroke="white" stroke-width="2"/><circle cx="17.5" cy="6.5" r="1.5" fill="white"/></svg></td></tr></table></a>
+                                </td>
+                                <td align="center" valign="middle" style="padding: 0 4px;">
+                                    <a href="https://kwai-video.com/p/CmdOV9wh" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#FF8C00" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 4v16M6 12l8-8M6 12l8 8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 6l4 6-4 6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr></table></a>
+                                </td>
+                                <td align="center" valign="middle" style="padding: 0 4px;">
+                                    <a href="https://www.tiktok.com/@cotaja.seu.market" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#010101" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr></table></a>
+                                </td>
+                                <td align="center" valign="middle" style="padding: 0 4px;">
+                                    <a href="https://www.facebook.com/share/1ArvGRTDmo/" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#1877F2" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr></table></a>
+                                </td>
+                                <td align="center" valign="middle" style="padding: 0 4px;">
+                                    <a href="https://youtube.com/@cotajaseumarketplacedeservicos" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#FF0000" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46a2.78 2.78 0 0 0-1.95 1.96C1 8.12 1 12 1 12s0 3.88.46 5.58a2.78 2.78 0 0 0 1.95 1.95C5.12 20 12 20 12 20s6.88 0 8.59-.47a2.78 2.78 0 0 0 1.95-1.95C23 15.88 23 12 23 12s0-3.88-.46-5.58z" stroke="white" stroke-width="2"/><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02" fill="white"/></svg></td></tr></table></a>
+                                </td>
+                            </tr></table>
                             <p style="margin: 20px 0 0 0; color: #6b7280; font-size: 11px; line-height: 1.4;">
                                 Este é um email automático, por favor não responda a esta mensagem.<br>
                                 Caso tenha dúvidas, entre em contato através do nosso suporte.

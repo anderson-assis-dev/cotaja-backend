@@ -7,10 +7,8 @@ const {
     updateProposalValidation
 } = require('../utils/validation');
 
-// All routes require authentication
 router.use(authenticateToken);
 
-// Proposal routes
 router.get('/', proposalController.index);
 router.post('/', createProposalValidation, proposalController.store);
 router.get('/:id', proposalController.show);

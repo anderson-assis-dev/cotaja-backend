@@ -8,16 +8,14 @@ const {
     updateOrderValidation
 } = require('../utils/validation');
 
-// All routes require authentication
 router.use(authenticateToken);
 
-// Middleware simplificado para upload (usa pasta temporária - caminho absoluto para PM2)
 const multer = require('multer');
 const path = require('path');
 const upload = multer({
     dest: path.join(__dirname, '../../uploads/temp/'),
     limits: {
-        fileSize: 50 * 1024 * 1024, // 50MB
+        fileSize: 50 * 1024 * 1024,
         files: 10
     },
     fileFilter: (req, file, cb) => {
@@ -26,7 +24,6 @@ const upload = multer({
     }
 });
 
-// Order routes
 router.get('/', orderController.index);
 router.post('/', (req, res, next) => {
     console.log('📥 POST /orders recebido');
@@ -34,7 +31,6 @@ router.post('/', (req, res, next) => {
     console.log('Content-Length:', req.headers['content-length']);
     next();
 }, (req, res, next) => {
-    // Custom error handler para multer
     const multerMiddleware = upload.array('attachments', 10);
     multerMiddleware(req, res, (err) => {
         if (err) {
@@ -58,7 +54,6 @@ router.put('/:id', (req, res, next) => {
     console.log('Content-Type:', req.headers['content-type']);
     next();
 }, (req, res, next) => {
-    // Custom error handler para multer
     const multerMiddleware = upload.array('attachments', 10);
     multerMiddleware(req, res, (err) => {
         if (err) {

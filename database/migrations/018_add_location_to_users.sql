@@ -1,0 +1,3 @@
+ALTER TABLE users ADD COLUMN latitude DECIMAL(10,8) NULL AFTER address;
+ALTER TABLE users ADD COLUMN longitude DECIMAL(11,8) NULL AFTER latitude;
+ALTER TABLE users ADD COLUMN zip_code VARCHAR(10) NULL AFTER longitude;

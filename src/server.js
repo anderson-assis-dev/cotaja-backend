@@ -9,6 +9,5 @@ app.listen(PORT, () => {
     console.log(`🌐 URL: http://localhost:${PORT}`);
     console.log(`📋 API Health: http://localhost:${PORT}/api/health`);
 
-    // Start schedule reminder service
     scheduleReminderService.start();
 });

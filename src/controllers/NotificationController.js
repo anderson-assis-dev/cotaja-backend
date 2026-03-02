@@ -17,7 +17,6 @@ class NotificationController {
             const notifications = await Notification.findByUser(user.id, options);
             const unreadCount = await Notification.getUnreadCount(user.id);
 
-            // Simple pagination simulation
             const startIndex = (page - 1) * limit;
             const endIndex = startIndex + parseInt(limit);
             const paginatedNotifications = notifications.slice(startIndex, endIndex);
@@ -67,7 +66,6 @@ class NotificationController {
                 });
             }
 
-            // Check if notification belongs to user
             if (notification.user_id !== user.id) {
                 return res.status(403).json({
                     success: false,

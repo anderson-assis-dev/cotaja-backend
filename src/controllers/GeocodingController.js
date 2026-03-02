@@ -1,10 +1,7 @@
 const appleMapsService = require('../services/AppleMapsService');
 
 class GeocodingController {
-    /**
-     * GET /api/geocoding/token
-     * Returns a MapKit JS token for the frontend WebView
-     */
+    
     async getMapKitToken(req, res) {
         try {
             const token = appleMapsService.generateMapKitToken();
@@ -21,10 +18,7 @@ class GeocodingController {
         }
     }
 
-    /**
-     * GET /api/geocoding/reverse?lat=XX&lng=XX
-     * Reverse geocode: coordenadas → endereço
-     */
+    
     async reverseGeocode(req, res) {
         try {
             const { lat, lng } = req.query;
@@ -68,10 +62,7 @@ class GeocodingController {
         }
     }
 
-    /**
-     * GET /api/geocoding/forward?address=XXX
-     * Forward geocode: endereço → coordenadas
-     */
+    
     async forwardGeocode(req, res) {
         try {
             const { address } = req.query;
@@ -105,10 +96,7 @@ class GeocodingController {
         }
     }
 
-    /**
-     * GET /api/geocoding/search?q=XXX&lat=XX&lng=XX
-     * Buscar endereços (autocomplete)
-     */
+    
     async search(req, res) {
         try {
             const { q, lat, lng } = req.query;
@@ -138,10 +126,7 @@ class GeocodingController {
         }
     }
 
-    /**
-     * GET /api/geocoding/cep/:cep
-     * Consultar CEP via ViaCEP
-     */
+    
     async lookupCep(req, res) {
         try {
             const { cep } = req.params;

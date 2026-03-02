@@ -22,7 +22,6 @@ const testConnection = async () => {
     } catch (error) {
         console.error('❌ Error connecting to database:', error.message);
         console.log('⚠️ Continuing without database connection for testing...');
-        // Don't exit process, allow server to start for testing
     }
 };
 

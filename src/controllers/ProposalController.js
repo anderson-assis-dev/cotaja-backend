@@ -20,7 +20,6 @@ class ProposalController {
                     withRelations: true
                 });
             } else if (user.isClient()) {
-                // For clients, get proposals for their orders
                 const connection = await pool.getConnection();
                 try {
                     let query = `
@@ -47,7 +46,6 @@ class ProposalController {
                     const [rows] = await connection.execute(query, params);
                     proposals = rows.map(row => new Proposal(row));
 
-                    // Load relations for each proposal
                     for (const proposal of proposals) {
                         await proposal.loadRelations(connection);
                     }
@@ -56,7 +54,6 @@ class ProposalController {
                 }
             }
 
-            // Simple pagination simulation
             const startIndex = (page - 1) * limit;
             const endIndex = startIndex + parseInt(limit);
             const paginatedProposals = proposals.slice(startIndex, endIndex);
@@ -94,7 +91,6 @@ class ProposalController {
                 });
             }
 
-            // Check if order exists and is open
             const order = await Order.findById(order_id);
             if (!order) {
                 return res.status(404).json({
@@ -110,7 +106,6 @@ class ProposalController {
                 });
             }
 
-            // Check if provider already sent a proposal for this order
             const existingProposals = await Proposal.findByOrder(order_id, {
                 provider_id: user.id
             });
@@ -122,7 +117,6 @@ class ProposalController {
                 });
             }
 
-            // Create proposal
             const proposal = await Proposal.create({
                 order_id,
                 provider_id: user.id,
@@ -132,17 +126,14 @@ class ProposalController {
                 status: Proposal.STATUS_PENDING
             });
 
-            // Load relations
             await proposal.loadRelations();
 
-            // Notify client about new proposal
             try {
                 await notificationService.notifyClientAboutNewProposal(proposal);
             } catch (error) {
                 console.error('Erro ao enviar notificação:', error);
             }
 
-            // Send email to client using EmailService (fire-and-forget, não bloqueia a response)
             (async () => {
                 try {
                     const client = await User.findById(order.client_id);
@@ -183,7 +174,6 @@ class ProposalController {
                 });
             }
 
-            // Check permissions
             if (user.isProvider() && proposal.provider_id !== user.id) {
                 return res.status(403).json({
                     success: false,
@@ -224,7 +214,6 @@ class ProposalController {
                 });
             }
 
-            // Check permissions
             if (user.isProvider() && proposal.provider_id !== user.id) {
                 return res.status(403).json({
                     success: false,
@@ -232,7 +221,6 @@ class ProposalController {
                 });
             }
 
-            // Check if proposal can be updated
             if (proposal.status !== Proposal.STATUS_PENDING) {
                 return res.status(400).json({
                     success: false,
@@ -281,7 +269,6 @@ class ProposalController {
                 });
             }
 
-            // Check if user is the client of the order
             if (!user.isClient() || proposal.order.client_id !== user.id) {
                 return res.status(403).json({
                     success: false,
@@ -289,7 +276,6 @@ class ProposalController {
                 });
             }
 
-            // Check if proposal is pending
             if (proposal.status !== Proposal.STATUS_PENDING) {
                 return res.status(400).json({
                     success: false,
@@ -297,7 +283,6 @@ class ProposalController {
                 });
             }
 
-            // Check if order is open
             if (proposal.order.status !== Order.STATUS_OPEN) {
                 return res.status(400).json({
                     success: false,
@@ -305,23 +290,19 @@ class ProposalController {
                 });
             }
 
-            // Start transaction
             await connection.beginTransaction();
 
             try {
-                // Accept the proposal
                 await connection.execute(
                     'UPDATE proposals SET status = ?, updated_at = NOW() WHERE id = ?',
                     [Proposal.STATUS_ACCEPTED, proposal.id]
                 );
 
-                // Reject other proposals for the same order
                 await connection.execute(
                     'UPDATE proposals SET status = ?, updated_at = NOW() WHERE order_id = ? AND id != ?',
                     [Proposal.STATUS_REJECTED, proposal.order_id, proposal.id]
                 );
 
-                // Update the order
                 await connection.execute(
                     'UPDATE orders SET status = ?, provider_id = ?, accepted_proposal_id = ?, updated_at = NOW() WHERE id = ?',
                     [Order.STATUS_IN_PROGRESS, proposal.provider_id, proposal.id, proposal.order_id]
@@ -329,17 +310,14 @@ class ProposalController {
 
                 await connection.commit();
 
-                // Reload proposal with updated data
                 const updatedProposal = await Proposal.findById(id, true);
 
-                // Notify provider about accepted proposal
                 try {
                     await notificationService.notifyProviderAboutProposalAccepted(updatedProposal);
                 } catch (error) {
                     console.error('Erro ao enviar notificação de proposta aceita:', error);
                 }
 
-                // Send email to provider about accepted proposal (fire-and-forget, não bloqueia a response)
                 (async () => {
                     try {
                         const provider = await User.findById(updatedProposal.provider_id);
@@ -355,7 +333,6 @@ class ProposalController {
                     }
                 })();
 
-                // Notify providers about rejected proposals
                 try {
                     const rejectedProposals = await Proposal.findByOrder(proposal.order_id, {
                         status: Proposal.STATUS_REJECTED,
@@ -404,7 +381,6 @@ class ProposalController {
                 });
             }
 
-            // Check if user is the client of the order
             if (!user.isClient() || proposal.order.client_id !== user.id) {
                 return res.status(403).json({
                     success: false,
@@ -412,7 +388,6 @@ class ProposalController {
                 });
             }
 
-            // Check if proposal is pending
             if (proposal.status !== Proposal.STATUS_PENDING) {
                 return res.status(400).json({
                     success: false,
@@ -422,7 +397,6 @@ class ProposalController {
 
             await proposal.update({ status: Proposal.STATUS_REJECTED });
 
-            // Notify provider about rejected proposal
             try {
                 await notificationService.notifyProviderAboutProposalRejected(proposal);
             } catch (error) {
@@ -455,7 +429,6 @@ class ProposalController {
                 });
             }
 
-            // Check if user is the provider of the proposal
             if (!user.isProvider() || proposal.provider_id !== user.id) {
                 return res.status(403).json({
                     success: false,
@@ -463,7 +436,6 @@ class ProposalController {
                 });
             }
 
-            // Check if proposal is pending
             if (proposal.status !== Proposal.STATUS_PENDING) {
                 return res.status(400).json({
                     success: false,
@@ -488,7 +460,6 @@ class ProposalController {
 
     async sendNewProposalEmail(proposal) {
         try {
-            // Load relations if not already loaded
             if (!proposal.order || !proposal.provider) {
                 await proposal.loadRelations();
             }
@@ -496,13 +467,11 @@ class ProposalController {
             const order = proposal.order;
             const provider = proposal.provider;
 
-            // Get client data
             const client = await User.findById(order.client_id);
             if (!client) {
                 throw new Error('Cliente não encontrado');
             }
 
-            // Create transporter
             const transporter = nodemailer.createTransporter({
                 host: process.env.MAIL_HOST,
                 port: process.env.MAIL_PORT,
@@ -513,7 +482,6 @@ class ProposalController {
                 }
             });
 
-            // Send mail
             await transporter.sendMail({
                 from: `"${process.env.MAIL_FROM_NAME}" <${process.env.MAIL_FROM_ADDRESS}>`,
                 to: client.email,

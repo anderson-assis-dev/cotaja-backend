@@ -10,13 +10,10 @@ class AppleMapsService {
         this._accessTokenExpiry = null;
     }
 
-    /**
-     * Generate a MapKit JS JWT token (used by frontend WebView for displaying maps)
-     */
+    
     generateMapKitToken() {
         const now = Math.floor(Date.now() / 1000);
 
-        // Return cached token if still valid (5 min buffer)
         if (this._token && this._tokenExpiry && (this._tokenExpiry - now) > 300) {
             return this._token;
         }
@@ -40,14 +37,10 @@ class AppleMapsService {
         return this._token;
     }
 
-    /**
-     * Get an access token from Apple Maps Server API
-     * This token is used for server-side geocoding requests
-     */
+    
     async getAccessToken() {
         const now = Math.floor(Date.now() / 1000);
 
-        // Return cached access token if still valid (5 min buffer)
         if (this._accessToken && this._accessTokenExpiry && (this._accessTokenExpiry - now) > 300) {
             return this._accessToken;
         }
@@ -70,8 +63,7 @@ class AppleMapsService {
 
             const data = await response.json();
             this._accessToken = data.accessToken;
-            // Apple tokens last ~30 min, but we refresh earlier
-            this._accessTokenExpiry = now + 1500; // 25 minutes
+            this._accessTokenExpiry = now + 1500;
 
             console.log('🗺️ Apple Maps access token obtido com sucesso');
             return this._accessToken;
@@ -81,12 +73,7 @@ class AppleMapsService {
         }
     }
 
-    /**
-     * Reverse Geocode: Convert latitude/longitude to address
-     * @param {number} latitude
-     * @param {number} longitude
-     * @returns {Object} Structured address
-     */
+    
     async reverseGeocode(latitude, longitude) {
         try {
             const accessToken = await this.getAccessToken();
@@ -119,11 +106,7 @@ class AppleMapsService {
         }
     }
 
-    /**
-     * Forward Geocode (Search): Convert address text to coordinates
-     * @param {string} addressText - Full address or partial search
-     * @returns {Object} Coordinates and structured address
-     */
+    
     async forwardGeocode(addressText) {
         try {
             const accessToken = await this.getAccessToken();
@@ -156,13 +139,7 @@ class AppleMapsService {
         }
     }
 
-    /**
-     * Search for addresses (autocomplete-like)
-     * @param {string} query - Search query
-     * @param {number} latitude - Optional: user latitude for biasing results
-     * @param {number} longitude - Optional: user longitude for biasing results
-     * @returns {Array} List of matching addresses
-     */
+    
     async searchAddress(query, latitude = null, longitude = null) {
         try {
             const accessToken = await this.getAccessToken();
@@ -198,11 +175,7 @@ class AppleMapsService {
         }
     }
 
-    /**
-     * Consultar CEP via ViaCEP (API gratuita brasileira)
-     * @param {string} cep - CEP no formato XXXXX-XXX ou XXXXXXXX
-     * @returns {Object} Endereço estruturado
-     */
+    
     async lookupCep(cep) {
         try {
             const cleanCep = cep.replace(/[^0-9]/g, '');
@@ -251,16 +224,13 @@ class AppleMapsService {
         }
     }
 
-    /**
-     * Parse Apple Maps response into our structured address format
-     */
+    
     _parseAppleAddress(result) {
         if (!result) return null;
 
         const loc = result.coordinate || result.center || {};
         const addr = result.structuredAddress || {};
 
-        // Build formatted full address
         const parts = [];
         if (addr.thoroughfare) parts.push(addr.thoroughfare);
         if (addr.subThoroughfare) parts.push(addr.subThoroughfare);

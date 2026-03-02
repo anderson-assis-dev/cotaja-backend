@@ -20,7 +20,6 @@ class NotificationService {
         try {
             console.log(`🔔 Notificando providers sobre novo pedido: ${order.title}`);
 
-            // Run DB lookups in parallel
             const [providerTokens, providers] = await Promise.all([
                 User.getProviderTokens(),
                 User.findProvidersByCategory(order.category),
@@ -28,7 +27,6 @@ class NotificationService {
             console.log(`📱 ${providerTokens.length} providers com tokens FCM`);
             console.log(`📋 Encontrados ${providers.length} providers na categoria ${order.category}`);
 
-            // Create database notifications in parallel (not sequentially)
             const notificationPromises = providers.map(provider =>
                 this.createNotification({
                     user_id: provider.id,
@@ -47,7 +45,6 @@ class NotificationService {
                 })
             );
 
-            // Send push notifications concurrently with DB notifications
             const pushPromise = providerTokens.length > 0
                 ? this.pushService.sendBulkNotifications(
                     providerTokens,
@@ -70,7 +67,6 @@ class NotificationService {
                 })
                 : Promise.resolve();
 
-            // Wait for all concurrently
             const [notifications] = await Promise.all([
                 Promise.all(notificationPromises),
                 pushPromise,
@@ -85,14 +81,12 @@ class NotificationService {
 
     async notifyClientAboutNewProposal(proposal) {
         try {
-            // Load proposal with relations to get order and provider info
             await proposal.loadRelations();
 
             if (!proposal.order || !proposal.provider) {
                 throw new Error('Dados da proposta incompletos');
             }
 
-            // Create database notification
             const notification = await this.createNotification({
                 user_id: proposal.order.client_id,
                 type: Notification.TYPE_NEW_PROPOSAL,
@@ -107,7 +101,6 @@ class NotificationService {
                 }
             });
 
-            // Send push notification to the client
             try {
                 const client = await User.findById(proposal.order.client_id);
                 if (client && client.fcm_token) {
@@ -130,7 +123,6 @@ class NotificationService {
                 }
             } catch (pushError) {
                 console.error('❌ Erro ao enviar push notification para cliente:', pushError.message);
-                // Não lançar erro - a notificação no banco já foi criada
             }
 
             return notification;
@@ -142,14 +134,12 @@ class NotificationService {
 
     async notifyProviderAboutProposalAccepted(proposal) {
         try {
-            // Load proposal with relations
             await proposal.loadRelations();
 
             if (!proposal.order) {
                 throw new Error('Dados da proposta incompletos');
             }
 
-            // Create database notification
             const notification = await this.createNotification({
                 user_id: proposal.provider_id,
                 type: Notification.TYPE_PROPOSAL_ACCEPTED,
@@ -163,7 +153,6 @@ class NotificationService {
                 }
             });
 
-            // Send push notification to the provider
             try {
                 const provider = await User.findById(proposal.provider_id);
                 if (provider && provider.fcm_token) {
@@ -186,7 +175,6 @@ class NotificationService {
                 }
             } catch (pushError) {
                 console.error('❌ Erro ao enviar push notification de proposta aceita:', pushError.message);
-                // Não lançar erro - a notificação no banco já foi criada
             }
 
             return notification;
@@ -198,7 +186,6 @@ class NotificationService {
 
     async notifyProviderAboutProposalRejected(proposal) {
         try {
-            // Load proposal with relations
             await proposal.loadRelations();
 
             if (!proposal.order) {

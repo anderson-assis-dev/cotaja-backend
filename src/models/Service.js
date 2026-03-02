@@ -52,7 +52,6 @@ class Service {
             }
 
             const serviceData = rows[0];
-            // Parse images JSON if it exists
             if (serviceData.images) {
                 try {
                     serviceData.images = JSON.parse(serviceData.images);
@@ -78,7 +77,6 @@ class Service {
             );
 
             return rows.map(row => {
-                // Parse images JSON if it exists
                 if (row.images) {
                     try {
                         row.images = JSON.parse(row.images);
@@ -169,7 +167,6 @@ class Service {
 
             const [rows] = await connection.execute(query, params);
             return rows.map(row => {
-                // Parse images JSON if it exists
                 if (row.images) {
                     try {
                         row.images = JSON.parse(row.images);

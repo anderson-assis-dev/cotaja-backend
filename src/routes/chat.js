@@ -5,7 +5,6 @@ const { authenticateToken } = require('../middlewares/auth');
 
 router.use(authenticateToken);
 
-// Messages for a specific order
 router.get('/:orderId/messages', messageController.index);
 router.post('/:orderId/messages', messageController.store);
 router.get('/:orderId/messages/unread', messageController.unreadCount);

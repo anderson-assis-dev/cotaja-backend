@@ -6,7 +6,6 @@ const apn = require('apn');
 
 class PushNotificationService {
     constructor() {
-        // Load Firebase Service Account from JSON file
         const serviceAccountPath = process.env.FIREBASE_PRIVATE_KEY_PATH || './certificates/firebase-service-account.json';
         let serviceAccount = null;
 
@@ -22,42 +21,27 @@ class PushNotificationService {
             console.log('⚠️  Error loading Firebase Service Account:', error.message);
         }
 
-        // Firebase configuration
         if (serviceAccount) {
             this.clientEmail = serviceAccount.client_email;
             this.privateKey = serviceAccount.private_key;
             this.projectId = serviceAccount.project_id;
         } else {
-            // Fallback to environment variables
             this.clientEmail = process.env.FIREBASE_CLIENT_EMAIL || 'firebase-adminsdk-xxxx@cotaja.iam.gserviceaccount.com';
             this.privateKey = process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') : null;
             this.projectId = process.env.FIREBASE_PROJECT_ID || 'cotaja-pushnotification';
         }
 
-        // iOS configuration
         this.iosCertPath = process.env.IOS_CERT_PATH || './certificates/APNs_Certificate.pem';
         this.iosKeyPath = process.env.IOS_KEY_PATH || './certificates/APNs_PrivateKey.pem';
         this.appBundle = process.env.IOS_APP_BUNDLE || 'com.cotaja';
 
-        // Cache for access token
         this.accessToken = null;
         this.tokenExpiry = null;
     }
 
-    /**
-     * Send push notification
-     * @param {Object} data - Notification data
-     * @param {string} data.registration_id - Device token
-     * @param {string} data.device - 'ios' or 'android'
-     * @param {string} data.title - Notification title
-     * @param {string} data.message - Notification message
-     * @param {string} data.sound - Sound file (optional)
-     * @param {string} data.image_url - Image URL (optional)
-     * @param {boolean} data.production - Use production environment (default: false)
-     */
+    
     async sendAlert(data) {
         try {
-            // Validate required fields
             if (!this.checkVar(data.registration_id) ||
                 !this.checkVar(data.device) ||
                 !this.checkVar(data.title) ||
@@ -81,9 +65,7 @@ class PushNotificationService {
         }
     }
 
-    /**
-     * Check if variable is valid (not null, empty, or string 'null')
-     */
+    
     checkVar(variable) {
         return variable !== null &&
                variable !== undefined &&
@@ -92,21 +74,17 @@ class PushNotificationService {
                String(variable).toLowerCase() !== 'null';
     }
 
-    /**
-     * Send Android push notification via FCM
-     */
+    
     async sendAndroid(registrationId, title, message, imageUrl = null, extraData = null) {
         try {
             const accessToken = await this.getAccessToken();
             const url = `https://fcm.googleapis.com/v1/projects/${this.projectId}/messages:send`;
 
-            // Create notification payload
             const notification = {
                 title: title,
                 body: message
             };
 
-            // Add image if provided
             if (imageUrl) {
                 notification.image = imageUrl;
             }
@@ -121,9 +99,7 @@ class PushNotificationService {
                 }
             };
 
-            // Add data payload for navigation and foreground handling
             if (extraData && typeof extraData === 'object') {
-                // FCM data values must be strings
                 const stringData = {};
                 for (const [key, value] of Object.entries(extraData)) {
                     stringData[key] = String(value);
@@ -149,19 +125,14 @@ class PushNotificationService {
         }
     }
 
-    /**
-     * Send iOS push notification via APNs
-     * @param {boolean} production - Use production certificate (default: false for sandbox)
-     */
+    
     async sendIOS(registrationId, title, message, sound = 'default', imageUrl = null, production = false, extraData = null) {
         try {
-            // Check if using FCM for iOS (recommended)
             if (process.env.USE_FCM_FOR_IOS === 'true') {
                 console.log('Using FCM for iOS notification');
                 return await this.sendAndroid(registrationId, title, message, imageUrl, extraData);
             }
 
-            // Check if certificate and key exist
             if (!fs.existsSync(this.iosCertPath)) {
                 throw new Error(`iOS certificate not found at: ${this.iosCertPath}. Consider setting USE_FCM_FOR_IOS=true in .env to use FCM instead.`);
             }
@@ -169,7 +140,6 @@ class PushNotificationService {
                 throw new Error(`iOS private key not found at: ${this.iosKeyPath}. Consider setting USE_FCM_FOR_IOS=true in .env to use FCM instead.`);
             }
 
-            // Try sending via APNs (sandbox first, then production if it fails)
             const result = await this._sendIOSWithFallback(registrationId, title, message, sound, imageUrl, production, extraData);
             return result;
 
@@ -180,9 +150,7 @@ class PushNotificationService {
         }
     }
 
-    /**
-     * Internal method to send iOS notification with automatic fallback from sandbox to production
-     */
+    
     async _sendIOSWithFallback(registrationId, title, message, sound, imageUrl, startWithProduction = true, extraData = null) {
         const environments = startWithProduction ? ['production', 'sandbox'] : ['sandbox', 'production'];
 
@@ -195,14 +163,12 @@ class PushNotificationService {
                 console.log(`   Certificate: ${this.iosCertPath}`);
                 console.log(`   Key: ${this.iosKeyPath}`);
 
-                // Configure APNs provider
                 const apnProvider = new apn.Provider({
                     cert: this.iosCertPath,
                     key: this.iosKeyPath,
                     production: isProduction
                 });
 
-                // Create notification
                 const notification = new apn.Notification();
                 notification.alert = {
                     title: title,
@@ -212,31 +178,25 @@ class PushNotificationService {
                 notification.sound = sound || 'default';
                 notification.topic = this.appBundle;
 
-                // Add image if provided
                 if (imageUrl) {
                     notification.payload = { image: imageUrl };
                 }
 
-                // Add extra data for navigation
                 if (extraData && typeof extraData === 'object') {
                     notification.payload = { ...(notification.payload || {}), ...extraData };
                 }
 
-                // Send notification
                 const result = await apnProvider.send(notification, registrationId);
 
-                // Shutdown provider
                 apnProvider.shutdown();
 
-                // Check for errors
                 if (result.failed && result.failed.length > 0) {
                     const error = result.failed[0];
                     console.error(`❌ APNs Error (${isProduction ? 'PRODUCTION' : 'SANDBOX'}):`, error.response);
 
-                    // If BadDeviceToken and not the last attempt, try the other environment
                     if (error.response && error.response.reason === 'BadDeviceToken' && !isLastAttempt) {
                         console.log(`⚠️  BadDeviceToken in ${isProduction ? 'PRODUCTION' : 'SANDBOX'}, tentando ${isProduction ? 'SANDBOX' : 'PRODUCTION'}...`);
-                        continue; // Try next environment
+                        continue;
                     }
 
                     throw new Error(`APNs Error: ${error.response.reason || 'Unknown error'}`);
@@ -254,28 +214,22 @@ class PushNotificationService {
                 };
 
             } catch (error) {
-                // If it's the last attempt, throw the error
                 if (isLastAttempt) {
                     throw error;
                 }
 
-                // If it's not a BadDeviceToken error, throw immediately
                 if (!error.message.includes('BadDeviceToken')) {
                     throw error;
                 }
 
-                // Otherwise, continue to next environment
                 console.log(`⚠️  Erro em ${isProduction ? 'PRODUCTION' : 'SANDBOX'}, tentando ${isProduction ? 'SANDBOX' : 'PRODUCTION'}...`);
             }
         }
     }
 
-    /**
-     * Get Firebase access token
-     */
+    
     async getAccessToken() {
         try {
-            // Return cached token if still valid
             if (this.accessToken && this.tokenExpiry && Date.now() < this.tokenExpiry) {
                 return this.accessToken;
             }
@@ -300,7 +254,7 @@ class PushNotificationService {
 
             if (data.access_token) {
                 this.accessToken = data.access_token;
-                this.tokenExpiry = Date.now() + (data.expires_in * 1000) - 60000; // Refresh 1 minute early
+                this.tokenExpiry = Date.now() + (data.expires_in * 1000) - 60000;
                 return this.accessToken;
             } else {
                 throw new Error('Failed to retrieve access token: ' + response);
@@ -312,9 +266,7 @@ class PushNotificationService {
         }
     }
 
-    /**
-     * Create JWT for Firebase authentication
-     */
+    
     createJWT() {
         if (!this.privateKey) {
             throw new Error('Firebase private key not configured');
@@ -324,16 +276,14 @@ class PushNotificationService {
             iss: this.clientEmail,
             scope: 'https://www.googleapis.com/auth/firebase.messaging',
             aud: 'https://oauth2.googleapis.com/token',
-            exp: Math.floor(Date.now() / 1000) + 3600, // 1 hour
+            exp: Math.floor(Date.now() / 1000) + 3600,
             iat: Math.floor(Date.now() / 1000)
         };
 
         return jwt.sign(payload, this.privateKey, { algorithm: 'RS256' });
     }
 
-    /**
-     * Make HTTP request using Node.js native modules
-     */
+    
     makeHttpRequest(url, options) {
         return new Promise((resolve, reject) => {
             const urlObj = new URL(url);
@@ -372,9 +322,7 @@ class PushNotificationService {
         });
     }
 
-    /**
-     * Make HTTPS request for iOS APNs
-     */
+    
     makeHttpsRequest(options, payload) {
         return new Promise((resolve, reject) => {
             const req = https.request(options, (res) => {
@@ -403,15 +351,12 @@ class PushNotificationService {
         });
     }
 
-    /**
-     * Send notification to multiple devices
-     */
+    
     async sendBulkNotifications(devices, title, message, options = {}) {
         console.log(`📤 [sendBulkNotifications] Enviando para ${devices.length} dispositivos em paralelo`);
         console.log(`   Título: ${title}`);
         console.log(`   Mensagem: ${message}`);
 
-        // Send ALL notifications in parallel
         const promises = devices.map((device, i) => {
             console.log(`📱 [${i + 1}/${devices.length}] Enfileirando:`, {
                 name: device.name,
@@ -426,7 +371,7 @@ class PushNotificationService {
                 message: message,
                 sound: options.sound || 'default',
                 image_url: options.image_url,
-                production: true, // always try production first
+                production: true,
                 ...options.data
             }).then(result => {
                 console.log(`   ✅ Sucesso para ${device.name}`);
@@ -443,17 +388,11 @@ class PushNotificationService {
         return results;
     }
 
-    /**
-     * Send notification to specific user (all their devices)
-     */
+    
     async sendToUser(userId, title, message, options = {}) {
         try {
-            // You'll need to implement getting user devices from your database
-            // const userDevices = await this.getUserDevices(userId);
-            // return await this.sendBulkNotifications(userDevices, title, message, options);
 
             console.log(`Sending notification to user ${userId}: ${title} - ${message}`);
-            // Placeholder - implement based on your user device storage
             return { success: true, message: 'Notification queued for user' };
         } catch (error) {
             console.error('Error sending notification to user:', error);

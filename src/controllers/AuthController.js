@@ -361,6 +361,20 @@ class AuthController {
                 });
             }
 
+            if (!user.stripe_customer_id) {
+                try {
+                    const stripeCustomer = await createCustomer({
+                        name: user.name,
+                        email: user.email,
+                        phone: user.phone || undefined,
+                        metadata: { user_id: String(user.id) },
+                    });
+                    await user.update({ stripe_customer_id: stripeCustomer.id });
+                } catch (stripeError) {
+                    console.error('Stripe customer creation failed on login (non-blocking):', stripeError.message);
+                }
+            }
+
             if (fcm_token) {
                 try {
                     await user.update({

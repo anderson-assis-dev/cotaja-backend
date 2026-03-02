@@ -21,7 +21,7 @@ class EmailService {
         });
     }
 
-    
+
     async sendOrderDeletedToProviders(order, providers) {
         try {
             const emailPromises = providers.map(provider => {
@@ -56,7 +56,7 @@ class EmailService {
         }
     }
 
-    
+
     async sendNewProposalToClient(order, proposal, client, provider) {
         try {
             const html = this.getNewProposalTemplate(order, proposal, provider, client);
@@ -84,7 +84,7 @@ class EmailService {
         }
     }
 
-    
+
     getNewProposalTemplate(order, proposal, provider, client) {
         const priceFormatted = Number.parseFloat(proposal.price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const clientName = client?.name || 'Cliente';
@@ -215,10 +215,10 @@ class EmailService {
                             <p style="margin: 0 0 15px 0; color: #9ca3af; font-size: 13px; line-height: 1.5;">contato@cotaja.io<br>www.cotaja.io</p>
                             <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 15px auto 0 auto;"><tr>
                                 <td align="center" valign="middle" style="padding: 0 4px;">
-                                    <a href="https://www.instagram.com/reel/DUi9bWsDt4c/?igsh=YzJzdTNmeWo1MWRl" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#E1306C" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="20" height="20" rx="5" stroke="white" stroke-width="2"/><circle cx="12" cy="12" r="4" stroke="white" stroke-width="2"/><circle cx="17.5" cy="6.5" r="1.5" fill="white"/></svg></td></tr></table></a>
+                                    <a href="https://www.instagram.com/cotaja.io" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#E1306C" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="20" height="20" rx="5" stroke="white" stroke-width="2"/><circle cx="12" cy="12" r="4" stroke="white" stroke-width="2"/><circle cx="17.5" cy="6.5" r="1.5" fill="white"/></svg></td></tr></table></a>
                                 </td>
                                 <td align="center" valign="middle" style="padding: 0 4px;">
-                                    <a href="https://kwai-video.com/p/CmdOV9wh" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#FF8C00" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 4v16M6 12l8-8M6 12l8 8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 6l4 6-4 6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr></table></a>
+                                    <a href="https://www.kwai.com/@cotajaseumarke" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#FF8C00" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 4v16M6 12l8-8M6 12l8 8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 6l4 6-4 6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr></table></a>
                                 </td>
                                 <td align="center" valign="middle" style="padding: 0 4px;">
                                     <a href="https://www.tiktok.com/@cotaja.seu.market" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#010101" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr></table></a>
@@ -246,7 +246,7 @@ class EmailService {
         `.trim();
     }
 
-    
+
     async sendProposalAcceptedToProvider(order, proposal, provider) {
         try {
             const html = this.getProposalAcceptedTemplate(order, proposal, provider);
@@ -274,7 +274,7 @@ class EmailService {
         }
     }
 
-    
+
     async sendOrderCancelledNotification(order, recipient, canceller, reason) {
         try {
             const html = this.getOrderCancelledTemplate(order, recipient, canceller, reason);
@@ -301,7 +301,7 @@ class EmailService {
         }
     }
 
-    
+
     async sendScheduleConfirmedNotification(order, client, provider, formattedDate) {
         try {
             const recipients = [client, provider].filter(u => u?.email);
@@ -333,7 +333,7 @@ class EmailService {
         }
     }
 
-    
+
     async sendScheduleReminderNotification(order, recipient, formattedDate, reminderType) {
         try {
             const html = this.getScheduleReminderTemplate(order, recipient, formattedDate, reminderType);
@@ -383,7 +383,7 @@ class EmailService {
         return { success: true };
     }
 
-    
+
     getProposalAcceptedTemplate(order, proposal, provider) {
         const priceFormatted = Number.parseFloat(proposal.price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const providerName = provider?.name || 'Prestador';
@@ -510,10 +510,10 @@ class EmailService {
                             <p style="margin: 0 0 15px 0; color: #9ca3af; font-size: 13px; line-height: 1.5;">contato@cotaja.io<br>www.cotaja.io</p>
                             <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 15px auto 0 auto;"><tr>
                                 <td align="center" valign="middle" style="padding: 0 4px;">
-                                    <a href="https://www.instagram.com/reel/DUi9bWsDt4c/?igsh=YzJzdTNmeWo1MWRl" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#E1306C" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="20" height="20" rx="5" stroke="white" stroke-width="2"/><circle cx="12" cy="12" r="4" stroke="white" stroke-width="2"/><circle cx="17.5" cy="6.5" r="1.5" fill="white"/></svg></td></tr></table></a>
+                                    <a href="https://www.instagram.com/cotaja.io" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#E1306C" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="20" height="20" rx="5" stroke="white" stroke-width="2"/><circle cx="12" cy="12" r="4" stroke="white" stroke-width="2"/><circle cx="17.5" cy="6.5" r="1.5" fill="white"/></svg></td></tr></table></a>
                                 </td>
                                 <td align="center" valign="middle" style="padding: 0 4px;">
-                                    <a href="https://kwai-video.com/p/CmdOV9wh" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#FF8C00" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 4v16M6 12l8-8M6 12l8 8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 6l4 6-4 6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr></table></a>
+                                    <a href="https://www.kwai.com/@cotajaseumarke" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#FF8C00" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 4v16M6 12l8-8M6 12l8 8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 6l4 6-4 6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr></table></a>
                                 </td>
                                 <td align="center" valign="middle" style="padding: 0 4px;">
                                     <a href="https://www.tiktok.com/@cotaja.seu.market" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#010101" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr></table></a>
@@ -541,7 +541,7 @@ class EmailService {
         `.trim();
     }
 
-    
+
     getOrderCancelledTemplate(order, recipient, canceller, reason) {
         const recipientName = recipient?.name || 'Usuário';
         const cancellerName = canceller?.name || 'Usuário';
@@ -579,7 +579,7 @@ class EmailService {
 </body></html>`.trim();
     }
 
-    
+
     getScheduleConfirmedTemplate(order, recipient, formattedDate) {
         const recipientName = recipient?.name || 'Usuário';
 
@@ -614,7 +614,7 @@ class EmailService {
 </body></html>`.trim();
     }
 
-    
+
     getScheduleReminderTemplate(order, recipient, formattedDate, reminderType) {
         const recipientName = recipient?.name || 'Usuário';
         const timeLabel = reminderType === '1d' ? 'amanhã' : 'em 1 hora';
@@ -649,7 +649,7 @@ class EmailService {
 </body></html>`.trim();
     }
 
-    
+
     getOrderDeletedTemplate(order, provider) {
         const budgetFormatted = order.budget ? `R$ ${Number.parseFloat(order.budget).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Não informado';
 
@@ -750,10 +750,10 @@ class EmailService {
                             <p style="margin: 0 0 15px 0; color: #9ca3af; font-size: 13px; line-height: 1.5;">contato@cotaja.io<br>www.cotaja.io</p>
                             <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 15px auto 0 auto;"><tr>
                                 <td align="center" valign="middle" style="padding: 0 4px;">
-                                    <a href="https://www.instagram.com/reel/DUi9bWsDt4c/?igsh=YzJzdTNmeWo1MWRl" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#E1306C" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="20" height="20" rx="5" stroke="white" stroke-width="2"/><circle cx="12" cy="12" r="4" stroke="white" stroke-width="2"/><circle cx="17.5" cy="6.5" r="1.5" fill="white"/></svg></td></tr></table></a>
+                                    <a href="https://www.instagram.com/cotaja.io" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#E1306C" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="20" height="20" rx="5" stroke="white" stroke-width="2"/><circle cx="12" cy="12" r="4" stroke="white" stroke-width="2"/><circle cx="17.5" cy="6.5" r="1.5" fill="white"/></svg></td></tr></table></a>
                                 </td>
                                 <td align="center" valign="middle" style="padding: 0 4px;">
-                                    <a href="https://kwai-video.com/p/CmdOV9wh" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#FF8C00" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 4v16M6 12l8-8M6 12l8 8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 6l4 6-4 6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr></table></a>
+                                    <a href="https://www.kwai.com/@cotajaseumarke" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#FF8C00" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 4v16M6 12l8-8M6 12l8 8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 6l4 6-4 6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr></table></a>
                                 </td>
                                 <td align="center" valign="middle" style="padding: 0 4px;">
                                     <a href="https://www.tiktok.com/@cotaja.seu.market" style="display: block; text-decoration: none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#010101" style="border-radius: 8px; width: 36px; height: 36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr></table></a>

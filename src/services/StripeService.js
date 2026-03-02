@@ -14,6 +14,12 @@ async function createCustomer({ name, email, phone, metadata = {} }) {
   return customer;
 }
 
+async function findOrCreateCustomer({ name, email, phone, metadata = {} }) {
+  const existing = await stripe.customers.list({ email, limit: 1 });
+  if (existing.data.length > 0) return existing.data[0];
+  return createCustomer({ name, email, phone, metadata });
+}
+
 async function getCustomer(stripeCustomerId) {
   return stripe.customers.retrieve(stripeCustomerId);
 }
@@ -48,4 +54,4 @@ async function createPaymentIntent({ amount, currency = 'brl', customerId, payme
   });
 }
 
-module.exports = { stripe, createCustomer, getCustomer, listPaymentMethods, createSetupIntent, detachPaymentMethod, createPaymentIntent };
+module.exports = { stripe, createCustomer, findOrCreateCustomer, getCustomer, listPaymentMethods, createSetupIntent, detachPaymentMethod, createPaymentIntent };

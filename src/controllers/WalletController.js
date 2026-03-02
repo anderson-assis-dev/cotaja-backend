@@ -1,4 +1,4 @@
-const { getCustomer, listPaymentMethods, createSetupIntent, detachPaymentMethod, stripe, createCustomer } = require('../services/StripeService');
+const { getCustomer, listPaymentMethods, createSetupIntent, detachPaymentMethod, stripe, createCustomer, findOrCreateCustomer } = require('../services/StripeService');
 const User = require('../models/User');
 
 module.exports = {
@@ -9,13 +9,13 @@ module.exports = {
       if (user.stripe_customer_id) {
         return res.status(400).json({ success: false, message: 'Carteira já existe.' });
       }
-      const customer = await createCustomer({
+      const customer = await findOrCreateCustomer({
         name: user.name,
         email: user.email,
         phone: user.phone || undefined,
-        metadata: { user_id: String(user._id) },
+        metadata: { user_id: String(user.id) },
       });
-      await User.findByIdAndUpdate(user._id, { stripe_customer_id: customer.id });
+      await user.update({ stripe_customer_id: customer.id });
       return res.json({ success: true, message: 'Carteira criada com sucesso.' });
     } catch (error) {
       console.error('WalletController.createWallet error:', error.message);

@@ -2,6 +2,7 @@ const Service = require('../models/Service');
 const User = require('../models/User');
 const { sendPushNotification } = require('../middlewares/pushNotification');
 const ProviderRating=require('../models/ProviderRating');
+const { UserSearchCategory } = require('../models/AdCredit');
 
 class ServiceController {
     constructor() {
@@ -12,6 +13,7 @@ class ServiceController {
         this.myServices = this.myServices.bind(this);
         this.show = this.show.bind(this);
         this.delete = this.delete.bind(this);
+        this.providerServices = this.providerServices.bind(this);
     }
 
     async create(req, res) {
@@ -66,7 +68,7 @@ class ServiceController {
         }
     }
 
-    
+
     async notifyProviders(service, clientName, category) {
         try {
             console.log(`📢 Notifying providers about new service: ${service.title}`);
@@ -195,6 +197,12 @@ class ServiceController {
     async available(req, res) {
         try {
             const { category, provider_id, search } = req.query;
+            const userId = req.user?.id;
+
+            if (category && userId) {
+                UserSearchCategory.track(userId, category).catch(() => {});
+            }
+
             const providers = await User.listProvidersPublic({ search: search || null });
             const filteredProviders = provider_id ? providers.filter(p => String(p.id) === String(provider_id)) : providers;
             const statsMap=await ProviderRating.getStatsForProviders(filteredProviders.map(p=>p.id));
@@ -281,6 +289,25 @@ class ServiceController {
             });
         } catch (error) {
             console.error('Erro ao buscar serviço:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Erro interno do servidor'
+            });
+        }
+    }
+
+    async providerServices(req, res) {
+        try {
+            const { providerId } = req.params;
+            const services = await Service.findByProviderId(providerId);
+            const activeServices = services.filter(s => s.status === 'active');
+
+            return res.status(200).json({
+                success: true,
+                data: activeServices
+            });
+        } catch (error) {
+            console.error('Erro ao listar serviços do prestador:', error);
             return res.status(500).json({
                 success: false,
                 message: 'Erro interno do servidor'

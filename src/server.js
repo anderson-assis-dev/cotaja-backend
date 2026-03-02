@@ -1,7 +1,10 @@
 const app = require('./app');
 const scheduleReminderService = require('./services/ScheduleReminderService');
+const AdDispatchService = require('./services/AdDispatchService');
 
 const PORT = process.env.APP_PORT || 3000;
+
+const adDispatcher = new AdDispatchService();
 
 app.listen(PORT, () => {
     console.log(`🚀 Cotaja API está rodando na porta ${PORT}`);
@@ -10,4 +13,5 @@ app.listen(PORT, () => {
     console.log(`📋 API Health: http://localhost:${PORT}/api/health`);
 
     scheduleReminderService.start();
+    adDispatcher.startCronJob(60000);
 });

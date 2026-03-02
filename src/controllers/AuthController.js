@@ -1,8 +1,12 @@
 const User = require('../models/User');
+const bcrypt = require('bcryptjs');
 const { generateToken } = require('../utils/jwt');
 const nodemailer = require('nodemailer');
+const crypto = require('crypto');
 const path = require('path');
 const { createCustomer } = require('../services/StripeService');
+
+const otpStore = new Map();
 
 async function sendWelcomeEmail(user, activationToken) {
     try {
@@ -125,11 +129,11 @@ async function sendWelcomeEmail(user, activationToken) {
                                             </p>
 
                                             <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 15px auto 0 auto;"><tr>
-                                                <td align="center" valign="middle" style="padding: 0 4px;"><a href="https://www.instagram.com/cotaja.io" style="display:block;text-decoration:none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#E1306C" style="border-radius:8px;width:36px;height:36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="20" height="20" rx="5" stroke="white" stroke-width="2"/><circle cx="12" cy="12" r="4" stroke="white" stroke-width="2"/><circle cx="17.5" cy="6.5" r="1.5" fill="white"/></svg></td></tr></table></a></td>
-                                                <td align="center" valign="middle" style="padding: 0 4px;"><a href="https://www.kwai.com/@cotajaseumarke" style="display:block;text-decoration:none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#FF8C00" style="border-radius:8px;width:36px;height:36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 4v16M6 12l8-8M6 12l8 8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 6l4 6-4 6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr></table></a></td>
-                                                <td align="center" valign="middle" style="padding: 0 4px;"><a href="https://www.tiktok.com/@cotaja.seu.market" style="display:block;text-decoration:none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#010101" style="border-radius:8px;width:36px;height:36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr></table></a></td>
-                                                <td align="center" valign="middle" style="padding: 0 4px;"><a href="https://www.facebook.com/share/1ArvGRTDmo/" style="display:block;text-decoration:none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#1877F2" style="border-radius:8px;width:36px;height:36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr></table></a></td>
-                                                <td align="center" valign="middle" style="padding: 0 4px;"><a href="https://youtube.com/@cotajaseumarketplacedeservicos" style="display:block;text-decoration:none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#FF0000" style="border-radius:8px;width:36px;height:36px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46a2.78 2.78 0 0 0-1.95 1.96C1 8.12 1 12 1 12s0 3.88.46 5.58a2.78 2.78 0 0 0 1.95 1.95C5.12 20 12 20 12 20s6.88 0 8.59-.47a2.78 2.78 0 0 0 1.95-1.95C23 15.88 23 12 23 12s0-3.88-.46-5.58z" stroke="white" stroke-width="2"/><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02" fill="white"/></svg></td></tr></table></a></td>
+                                                <td align="center" valign="middle" style="padding: 0 4px;"><a href="https://www.instagram.com/cotaja.io" style="display:block;text-decoration:none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#E1306C" style="border-radius:8px;width:36px;height:36px;font-family:Arial,sans-serif;font-size:13px;font-weight:bold;color:#ffffff;">in</td></tr></table></a></td>
+                                                <td align="center" valign="middle" style="padding: 0 4px;"><a href="https://www.kwai.com/@cotajaseumarke" style="display:block;text-decoration:none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#FF8C00" style="border-radius:8px;width:36px;height:36px;font-family:Arial,sans-serif;font-size:13px;font-weight:bold;color:#ffffff;">K</td></tr></table></a></td>
+                                                <td align="center" valign="middle" style="padding: 0 4px;"><a href="https://www.tiktok.com/@cotaja.seu.market" style="display:block;text-decoration:none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#010101" style="border-radius:8px;width:36px;height:36px;font-family:Arial,sans-serif;font-size:13px;font-weight:bold;color:#ffffff;">tt</td></tr></table></a></td>
+                                                <td align="center" valign="middle" style="padding: 0 4px;"><a href="https://www.facebook.com/share/1ArvGRTDmo/" style="display:block;text-decoration:none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#1877F2" style="border-radius:8px;width:36px;height:36px;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;color:#ffffff;">f</td></tr></table></a></td>
+                                                <td align="center" valign="middle" style="padding: 0 4px;"><a href="https://youtube.com/@cotajaseumarketplacedeservicos" style="display:block;text-decoration:none;"><table width="36" height="36" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#FF0000" style="border-radius:8px;width:36px;height:36px;font-family:Arial,sans-serif;font-size:11px;font-weight:bold;color:#ffffff;">YT</td></tr></table></a></td>
                                             </tr></table>
 
                                             <p style="margin: 20px 0 0 0; color: #6b7280; font-size: 11px; line-height: 1.4;">
@@ -165,6 +169,85 @@ async function sendWelcomeEmail(user, activationToken) {
         console.error('❌ Erro ao enviar e-mail de boas-vindas:', error);
         throw error;
     }
+}
+
+async function sendOtpEmail(user, otp) {
+    const mailPort = parseInt(process.env.MAIL_PORT) || 465;
+    const transporter = nodemailer.createTransport({
+        host: process.env.MAIL_HOST || 'smtp.gmail.com',
+        port: mailPort,
+        secure: mailPort === 465,
+        auth: { user: process.env.MAIL_USERNAME, pass: process.env.MAIL_PASSWORD },
+        tls: { rejectUnauthorized: false },
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 15000,
+    });
+
+    await transporter.sendMail({
+        from: `"${process.env.MAIL_FROM_NAME}" <${process.env.MAIL_FROM_ADDRESS}>`,
+        to: user.email,
+        subject: 'Cotaja — Código de verificação',
+        html: `
+            <!DOCTYPE html>
+            <html lang="pt-BR">
+            <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+            <body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,sans-serif;">
+              <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f4f4f4;padding:20px 0;">
+                <tr><td align="center">
+                  <table cellpadding="0" cellspacing="0" border="0" width="600" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+                    <tr>
+                      <td style="background-color:#ffffff;padding:40px 40px 30px 40px;text-align:center;border-bottom:3px solid #4f46e5;">
+                        <img src="cid:cotaja-logo" alt="Cotaja" style="max-width:200px;height:auto;display:block;margin:0 auto;" />
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:40px 40px 20px 40px;">
+                        <h2 style="margin:0 0 20px 0;color:#1f2937;font-size:22px;text-align:center;">Código de Verificação</h2>
+                        <p style="margin:0 0 15px 0;color:#4b5563;font-size:16px;line-height:1.6;">Olá, <strong>${user.name}</strong>!</p>
+                        <p style="margin:0 0 24px 0;color:#4b5563;font-size:16px;line-height:1.6;">
+                          Use o código abaixo para redefinir sua senha. Ele é válido por <strong>10 minutos</strong>.
+                        </p>
+                        <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                          <tr><td align="center" style="padding:8px 0 32px 0;">
+                            <div style="display:inline-block;background-color:#4f46e5;color:#ffffff;font-size:36px;font-weight:bold;letter-spacing:12px;padding:18px 36px;border-radius:12px;">
+                              ${otp}
+                            </div>
+                          </td></tr>
+                        </table>
+                        <p style="margin:0 0 10px 0;color:#9ca3af;font-size:13px;text-align:center;">
+                          Se você não solicitou essa alteração, ignore este email.
+                        </p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="background-color:#1f2937;padding:24px 40px;text-align:center;">
+                        <p style="margin:0 0 8px 0;color:#ffffff;font-size:14px;"><strong>COTAJA</strong></p>
+                        <p style="margin:0 0 12px 0;color:#9ca3af;font-size:13px;">contato@cotaja.io &nbsp;|&nbsp; www.cotaja.io</p>
+                        <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto;"><tr>
+                          <td style="padding:0 4px;"><a href="https://www.instagram.com/cotaja.io" style="display:block;text-decoration:none;"><table width="32" height="32" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#E1306C" style="border-radius:6px;width:32px;height:32px;font-family:Arial,sans-serif;font-size:12px;font-weight:bold;color:#ffffff;">in</td></tr></table></a></td>
+                          <td style="padding:0 4px;"><a href="https://www.kwai.com/@cotajaseumarke" style="display:block;text-decoration:none;"><table width="32" height="32" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#FF8C00" style="border-radius:6px;width:32px;height:32px;font-family:Arial,sans-serif;font-size:12px;font-weight:bold;color:#ffffff;">K</td></tr></table></a></td>
+                          <td style="padding:0 4px;"><a href="https://www.tiktok.com/@cotaja.seu.market" style="display:block;text-decoration:none;"><table width="32" height="32" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#010101" style="border-radius:6px;width:32px;height:32px;font-family:Arial,sans-serif;font-size:12px;font-weight:bold;color:#ffffff;">tt</td></tr></table></a></td>
+                          <td style="padding:0 4px;"><a href="https://www.facebook.com/share/1ArvGRTDmo/" style="display:block;text-decoration:none;"><table width="32" height="32" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#1877F2" style="border-radius:6px;width:32px;height:32px;font-family:Arial,sans-serif;font-size:15px;font-weight:bold;color:#ffffff;">f</td></tr></table></a></td>
+                          <td style="padding:0 4px;"><a href="https://youtube.com/@cotajaseumarketplacedeservicos" style="display:block;text-decoration:none;"><table width="32" height="32" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#FF0000" style="border-radius:6px;width:32px;height:32px;font-family:Arial,sans-serif;font-size:10px;font-weight:bold;color:#ffffff;">YT</td></tr></table></a></td>
+                        </tr></table>
+                        <p style="margin:16px 0 0 0;color:#6b7280;font-size:11px;">Este é um email automático, por favor não responda a esta mensagem.</p>
+                      </td>
+                    </tr>
+                  </table>
+                </td></tr>
+              </table>
+            </body>
+            </html>
+        `,
+        attachments: [
+            {
+                filename: 'logo.png',
+                path: path.join(__dirname, '../../assets/images/logo.png'),
+                cid: 'cotaja-logo',
+            },
+        ],
+    });
 }
 
 class AuthController {
@@ -523,6 +606,57 @@ class AuthController {
                 success: false,
                 message: 'Erro interno do servidor'
             });
+        }
+    }
+    async requestOtp(req, res) {
+        try {
+            const user = req.user;
+            const otp = String(crypto.randomInt(100000, 999999));
+            const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+            otpStore.set(user.id, { otp, expiresAt });
+            await sendOtpEmail(user, otp);
+            return res.json({ success: true, message: 'Código enviado para o seu email.' });
+        } catch (error) {
+            console.error('Erro ao enviar OTP:', error);
+            return res.status(500).json({ success: false, message: 'Erro ao enviar código. Tente novamente.' });
+        }
+    }
+
+    async changePasswordWithOtp(req, res) {
+        try {
+            const { otp, new_password } = req.body;
+            const user = req.user;
+
+            if (!otp || !new_password) {
+                return res.status(400).json({ success: false, message: 'Código e nova senha são obrigatórios.' });
+            }
+
+            if (new_password.length < 6) {
+                return res.status(400).json({ success: false, message: 'A senha deve ter no mínimo 6 caracteres.' });
+            }
+
+            const stored = otpStore.get(user.id);
+            if (!stored) {
+                return res.status(400).json({ success: false, message: 'Nenhum código foi solicitado. Solicite um novo código.' });
+            }
+
+            if (new Date() > stored.expiresAt) {
+                otpStore.delete(user.id);
+                return res.status(400).json({ success: false, message: 'O código expirou. Solicite um novo código.' });
+            }
+
+            if (stored.otp !== otp) {
+                return res.status(400).json({ success: false, message: 'Código inválido.' });
+            }
+
+            const hashedPassword = await bcrypt.hash(new_password, 10);
+            await user.update({ password: hashedPassword });
+            otpStore.delete(user.id);
+
+            return res.json({ success: true, message: 'Senha alterada com sucesso.' });
+        } catch (error) {
+            console.error('Erro ao alterar senha:', error);
+            return res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
         }
     }
 }

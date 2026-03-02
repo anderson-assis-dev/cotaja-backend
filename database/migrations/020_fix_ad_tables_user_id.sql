@@ -1,20 +1,8 @@
-CREATE TABLE IF NOT EXISTS `ad_packages` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `name` VARCHAR(100) NOT NULL,
-  `slug` VARCHAR(50) NOT NULL UNIQUE,
-  `price_cents` INT NOT NULL,
-  `ad_count` INT NOT NULL,
-  `ad_type` ENUM('single','general','targeted') NOT NULL,
-  `description` TEXT NULL,
-  `active` TINYINT(1) NOT NULL DEFAULT 1,
-  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+SET FOREIGN_KEY_CHECKS = 0;
 
-INSERT INTO `ad_packages` (`name`, `slug`, `price_cents`, `ad_count`, `ad_type`, `description`) VALUES
-('Anúncio Único', 'single-5', 500, 1, 'single', 'Um anúncio avulso enviado para todos os usuários.'),
-('2 Anúncios Gerais', 'general-15', 1500, 2, 'general', 'Dois anúncios gerais enviados para todos sem filtro.'),
-('3 Anúncios Categorizados', 'targeted-25', 2500, 3, 'targeted', 'Três anúncios enviados apenas para usuários próximos e com interesse na sua categoria.');
+DROP TABLE IF EXISTS `ads`;
+DROP TABLE IF EXISTS `ad_purchases`;
+DROP TABLE IF EXISTS `user_search_categories`;
 
 CREATE TABLE IF NOT EXISTS `ad_purchases` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
@@ -67,3 +55,5 @@ CREATE TABLE IF NOT EXISTS `user_search_categories` (
   INDEX `idx_search_category` (`category`),
   CONSTRAINT `fk_user_search_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET FOREIGN_KEY_CHECKS = 1;

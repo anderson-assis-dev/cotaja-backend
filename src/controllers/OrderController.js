@@ -518,30 +518,22 @@ class OrderController {
                 }
             }
 
-            let orders = [];
-            const radii = [50, 100, 200];
+            const providerCategories = Array.isArray(user.service_categories) && user.service_categories.length > 0
+                ? user.service_categories
+                : null;
 
-            for (const radiusKm of radii) {
-                orders = await Order.findOpen({
-                    category,
-                    cep,
-                    search,
-                    latitude: providerLat,
-                    longitude: providerLng,
-                    radiusKm,
-                    withRelations: true,
-                });
-                if (orders.length > 0) break;
-            }
+            const findParams = {
+                category,
+                categories: !category && providerCategories ? providerCategories : undefined,
+                cep,
+                search,
+                latitude: providerLat,
+                longitude: providerLng,
+                radiusKm: 50,
+                withRelations: true,
+            };
 
-            if (orders.length === 0) {
-                orders = await Order.findOpen({
-                    category,
-                    cep,
-                    search,
-                    withRelations: true,
-                });
-            }
+            const orders = await Order.findOpen(findParams);
 
             const startIndex = (page - 1) * limit;
             const endIndex = startIndex + parseInt(limit);

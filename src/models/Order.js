@@ -113,7 +113,7 @@ class Order {
         }
     }
 
-    
+
     static async batchLoadRelations(orders, connection) {
         if (!orders.length) return;
 
@@ -239,7 +239,11 @@ class Order {
             let query = 'SELECT * FROM orders WHERE status = ?';
             const params = [Order.STATUS_OPEN];
 
-            if (options.category) {
+            if (options.categories && Array.isArray(options.categories) && options.categories.length > 0) {
+                const placeholders = options.categories.map(() => '?').join(', ');
+                query += ` AND category IN (${placeholders})`;
+                params.push(...options.categories);
+            } else if (options.category) {
                 query += ' AND category = ?';
                 params.push(options.category);
             }
@@ -511,7 +515,7 @@ class Order {
         };
     }
 
-    
+
     toListJSON() {
         const lightAttachments = Array.isArray(this.attachments)
             ? this.attachments.map(att => {

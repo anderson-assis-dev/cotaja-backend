@@ -15,10 +15,17 @@ class ProposalController {
             let proposals = [];
 
             if (user.isProvider()) {
-                proposals = await Proposal.findByProvider(user.id, {
-                    status,
-                    withRelations: true
-                });
+                if (order_id) {
+                    proposals = await Proposal.findByOrder(order_id, {
+                        withRelations: true,
+                        status
+                    });
+                } else {
+                    proposals = await Proposal.findByProvider(user.id, {
+                        status,
+                        withRelations: true
+                    });
+                }
             } else if (user.isClient()) {
                 const connection = await pool.getConnection();
                 try {
@@ -239,6 +246,24 @@ class ProposalController {
 
             const updatedProposal = await proposal.update(updateData);
             await updatedProposal.loadRelations();
+
+            try {
+                await notificationService.notifyClientAboutNewProposal(updatedProposal);
+            } catch (error) {
+                console.error('Erro ao enviar notificação de proposta atualizada:', error);
+            }
+
+            (async () => {
+                try {
+                    const client = await User.findById(updatedProposal.order.client_id);
+                    const provider = await User.findById(user.id);
+                    if (client && provider) {
+                        await emailService.sendNewProposalToClient(updatedProposal.order, updatedProposal, client, provider);
+                    }
+                } catch (error) {
+                    console.error('Erro ao enviar e-mail de proposta atualizada (background):', error.message);
+                }
+            })();
 
             return res.json({
                 success: true,

@@ -107,7 +107,7 @@ class NotificationService {
                     console.log(`📱 Enviando push notification para cliente ${client.name} (${client.email})`);
 
                     const pushTitle = 'Nova proposta recebida!';
-                    const pushMessage = `${proposal.provider.name} enviou uma proposta de R$ ${parseFloat(proposal.price).toFixed(2).replace('.', ',')} para "${proposal.order.title}"`;
+                    const pushMessage = `${proposal.provider.name} enviou uma proposta de R$ ${parseFloat(proposal.price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} para "${proposal.order.title}"`;
 
                     await this.pushService.sendAlert({
                         registration_id: client.fcm_token,
@@ -159,7 +159,7 @@ class NotificationService {
                     console.log(`📱 Enviando push notification de proposta aceita para ${provider.name} (${provider.email})`);
 
                     const pushTitle = 'Proposta aceita!';
-                    const pushMessage = `Sua proposta de R$ ${parseFloat(proposal.price).toFixed(2).replace('.', ',')} para "${proposal.order.title}" foi aceita pelo cliente!`;
+                    const pushMessage = `Sua proposta de R$ ${parseFloat(proposal.price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} para "${proposal.order.title}" foi aceita pelo cliente!`;
 
                     await this.pushService.sendAlert({
                         registration_id: provider.fcm_token,

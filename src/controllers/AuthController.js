@@ -5,6 +5,7 @@ const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const path = require('path');
 const { createCustomer } = require('../services/StripeService');
+const CriminalCheckService = require('../services/CriminalCheckService');
 
 const otpStore = new Map();
 
@@ -253,7 +254,7 @@ async function sendOtpEmail(user, otp) {
 class AuthController {
     async register(req, res) {
         try {
-            const { name, email, phone, password, profile_type, fcm_token, device_platform, mother_name, birth_date, address, zip_code, latitude, longitude } = req.body;
+            const { name, email, phone, password, profile_type, fcm_token, device_platform, mother_name, birth_date, cpf, address, zip_code, latitude, longitude, service_categories } = req.body;
 
             console.log('📝 [BACKEND/REGISTER] Nome:', name);
             console.log('📧 [BACKEND/REGISTER] Email:', email);
@@ -276,12 +277,14 @@ class AuthController {
                 phone,
                 password,
                 profile_type: profile_type || 'client',
+                cpf: cpf || null,
                 mother_name: mother_name || null,
                 birth_date: birth_date || null,
                 address: address || null,
                 zip_code: zip_code || null,
                 latitude: latitude || null,
                 longitude: longitude || null,
+                service_categories: service_categories || null,
             };
 
             try {
@@ -311,6 +314,12 @@ class AuthController {
             sendWelcomeEmail(user, user.activation_token).catch(error => {
                 console.error('❌ Erro ao enviar e-mail de boas-vindas (background):', error.message);
             });
+
+            if ((profile_type || 'client') === 'provider' && cpf) {
+                CriminalCheckService.checkProvider(user.id).catch(error => {
+                    console.error('❌ Erro na verificação criminal (background):', error.message);
+                });
+            }
 
             return res.status(201).json({
                 success: true,

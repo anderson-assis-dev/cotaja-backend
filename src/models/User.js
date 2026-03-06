@@ -9,6 +9,7 @@ class User {
         this.name = data.name || null;
         this.email = data.email || null;
         this.phone = data.phone || null;
+        this.cpf = data.cpf || null;
         this.mother_name = data.mother_name || null;
         this.birth_date = data.birth_date || null;
         this.stripe_customer_id = data.stripe_customer_id || null;
@@ -18,6 +19,9 @@ class User {
         this.zip_code = data.zip_code || null;
         this.profile_type = data.profile_type || 'client';
         this.service_categories = data.service_categories || null;
+        this.criminal_check = data.criminal_check !== undefined ? data.criminal_check : 0;
+        this.criminal_check_code = data.criminal_check_code || null;
+        this.criminal_check_date = data.criminal_check_date || null;
         this.fcm_token = data.fcm_token || null;
         this.device_platform = data.device_platform || null;
         this.password = data.password || null;
@@ -44,13 +48,14 @@ class User {
             const activationToken = crypto.randomUUID();
 
             const [result] = await connection.execute(
-                `INSERT INTO users (uuid, name, email, phone, mother_name, birth_date, stripe_customer_id, password, profile_type, address, zip_code, latitude, longitude, service_categories, fcm_token, device_platform, activate, activation_token, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+                `INSERT INTO users (uuid, name, email, phone, cpf, mother_name, birth_date, stripe_customer_id, password, profile_type, address, zip_code, latitude, longitude, service_categories, fcm_token, device_platform, activate, activation_token, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
                 [
                     uuid,
                     userData.name,
                     userData.email,
                     userData.phone || null,
+                    userData.cpf || null,
                     userData.mother_name || null,
                     userData.birth_date || null,
                     userData.stripe_customer_id || null,

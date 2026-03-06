@@ -516,7 +516,7 @@ class ProposalController {
                     <p>Olá, ${client.name}!</p>
                     <p>Você recebeu uma nova proposta de <strong>${provider.name}</strong> para seu pedido:</p>
                     <h3>${order.title}</h3>
-                    <p><strong>Preço proposto:</strong> R$ ${proposal.price}</p>
+                    <p><strong>Preço proposto:</strong> R$ ${parseFloat(proposal.price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                     <p><strong>Prazo:</strong> ${proposal.deadline}</p>
                     <p><strong>Descrição:</strong> ${proposal.description}</p>
                     <p>Acesse nossa plataforma para mais detalhes e aceitar ou rejeitar a proposta!</p>

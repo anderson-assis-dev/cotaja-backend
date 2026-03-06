@@ -702,7 +702,7 @@ class OrderController {
                             <p>Olá, ${provider.name}!</p>
                             <p>Uma nova demanda na categoria <strong>${order.category}</strong> foi criada:</p>
                             <h3>${order.title}</h3>
-                            <p><strong>Orçamento:</strong> R$ ${order.budget}</p>
+                            <p><strong>Orçamento:</strong> R$ ${parseFloat(order.budget).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                             <p><strong>Descrição:</strong> ${order.description}</p>
                             <p>Acesse nossa plataforma para mais detalhes e enviar sua proposta!</p>
                         `

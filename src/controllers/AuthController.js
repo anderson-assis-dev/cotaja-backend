@@ -271,6 +271,21 @@ class AuthController {
                 });
             }
 
+            if ((profile_type || 'client') === 'provider') {
+                if (!mother_name || !mother_name.trim()) {
+                    return res.status(422).json({
+                        success: false,
+                        message: 'O nome da mãe é obrigatório para cadastro de prestador.',
+                    });
+                }
+                if (!birth_date || !birth_date.trim()) {
+                    return res.status(422).json({
+                        success: false,
+                        message: 'A data de nascimento é obrigatória para cadastro de prestador.',
+                    });
+                }
+            }
+
             const userData = {
                 name,
                 email,

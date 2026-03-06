@@ -1,0 +1,86 @@
+const { pool } = require('../config/database');
+const CriminalCheckService = require('./CriminalCheckService');
+
+class CriminalCheckCron {
+  constructor() {
+    this.intervalId = null;
+    this.running = false;
+  }
+
+  start(intervalMs = 60 * 60 * 1000) {
+    console.log('[CriminalCheckCron] Iniciado (intervalo: 1h)');
+    this.intervalId = setInterval(() => this.run(), intervalMs);
+    setTimeout(() => this.run(), 30000);
+  }
+
+  stop() {
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+  }
+
+  async run() {
+    if (this.running) {
+      console.log('[CriminalCheckCron] Já está rodando, pulando...');
+      return;
+    }
+
+    this.running = true;
+    console.log('[CriminalCheckCron] Verificando prestadores pendentes...');
+
+    let connection;
+    try {
+      connection = await pool.getConnection();
+
+      const [rows] = await connection.execute(
+        `SELECT id, name, cpf, mother_name, birth_date
+         FROM users
+         WHERE profile_type = 'provider'
+           AND criminal_check = 0
+           AND mother_name IS NOT NULL
+           AND mother_name != ''
+           AND birth_date IS NOT NULL
+         ORDER BY created_at ASC
+         LIMIT 5`
+      );
+
+      if (rows.length === 0) {
+        console.log('[CriminalCheckCron] Nenhum prestador pendente.');
+        this.running = false;
+        return;
+      }
+
+      console.log(`[CriminalCheckCron] ${rows.length} prestador(es) pendente(s)`);
+
+      for (const user of rows) {
+        const cpfDigits = (user.cpf || '').replace(/\D/g, '');
+        if (cpfDigits.length > 11) {
+          console.log(`[CriminalCheckCron] ${user.name} - CNPJ, marcando como isento`);
+          await connection.execute(
+            `UPDATE users SET criminal_check = 1, criminal_check_code = 'CNPJ_ISENTO', criminal_check_date = NOW() WHERE id = ?`,
+            [user.id]
+          );
+          continue;
+        }
+
+        console.log(`[CriminalCheckCron] Processando: ${user.name} (ID: ${user.id})`);
+        try {
+          const result = await CriminalCheckService.checkProvider(user.id);
+          console.log(`[CriminalCheckCron] ${user.name} -> ${result.criminal_check_code || 'ERRO'}`);
+        } catch (error) {
+          console.error(`[CriminalCheckCron] Erro ao processar ${user.name}:`, error.message);
+        }
+
+        await new Promise(r => setTimeout(r, 10000));
+      }
+    } catch (error) {
+      console.error('[CriminalCheckCron] Erro geral:', error.message);
+    } finally {
+      if (connection) connection.release();
+      this.running = false;
+    }
+  }
+}
+
+module.exports = new CriminalCheckCron();

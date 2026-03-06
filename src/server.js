@@ -1,6 +1,7 @@
 const app = require('./app');
 const scheduleReminderService = require('./services/ScheduleReminderService');
 const AdDispatchService = require('./services/AdDispatchService');
+const criminalCheckCron = require('./services/CriminalCheckCron');
 
 const PORT = process.env.APP_PORT || 3000;
 
@@ -14,4 +15,5 @@ app.listen(PORT, () => {
 
     scheduleReminderService.start();
     adDispatcher.startCronJob(60000);
+    criminalCheckCron.start();
 });

@@ -62,18 +62,58 @@ class CriminalCheckService {
       console.log('[CriminalCheck] Abrindo site da PF (stealth mode)...');
       await page.goto(PF_FORM_URL, { waitUntil: 'networkidle2', timeout: 90000 });
 
-      console.log('[CriminalCheck] Aguardando Cloudflare...');
-      await new Promise(r => setTimeout(r, 15000));
-
-      const currentUrl = page.url();
-      console.log('[CriminalCheck] URL atual:', currentUrl);
+      console.log('[CriminalCheck] Aguardando página carregar...');
+      await new Promise(r => setTimeout(r, 5000));
 
       const pageTitle = await page.title();
       console.log('[CriminalCheck] Titulo da página:', pageTitle);
+      console.log('[CriminalCheck] URL atual:', page.url());
 
-      if (pageTitle.includes('moment') || pageTitle.includes('Cloudflare')) {
-        console.log('[CriminalCheck] Cloudflare detectado, aguardando mais 20s...');
-        await new Promise(r => setTimeout(r, 20000));
+      const turnstileIframe = await page.$('iframe[src*="challenges.cloudflare"], iframe[src*="turnstile"]');
+      if (turnstileIframe) {
+        console.log('[CriminalCheck] Cloudflare Turnstile iframe encontrado, clicando no checkbox...');
+        const frame = await turnstileIframe.contentFrame();
+        if (frame) {
+          await new Promise(r => setTimeout(r, 2000));
+          try {
+            await frame.waitForSelector('input[type="checkbox"]', { timeout: 10000 });
+            await frame.click('input[type="checkbox"]');
+          } catch {
+            console.log('[CriminalCheck] Checkbox não encontrado, tentando clique via coordenadas...');
+            const box = await turnstileIframe.boundingBox();
+            if (box) {
+              await page.mouse.click(box.x + 25, box.y + 20);
+            }
+          }
+          console.log('[CriminalCheck] Aguardando Cloudflare resolver...');
+          await new Promise(r => setTimeout(r, 10000));
+        }
+      } else {
+        console.log('[CriminalCheck] Turnstile iframe não encontrado, tentando clique direto no checkbox...');
+        try {
+          const checkbox = await page.$('#AOzYg6 input[type="checkbox"], .cb-lb input[type="checkbox"]');
+          if (checkbox) {
+            await checkbox.click();
+            console.log('[CriminalCheck] Checkbox clicado diretamente.');
+            await new Promise(r => setTimeout(r, 10000));
+          } else {
+            console.log('[CriminalCheck] Nenhum checkbox encontrado, continuando...');
+            await new Promise(r => setTimeout(r, 5000));
+          }
+        } catch {
+          console.log('[CriminalCheck] Erro ao buscar checkbox, continuando...');
+          await new Promise(r => setTimeout(r, 5000));
+        }
+      }
+
+      const postTitle = await page.title();
+      console.log('[CriminalCheck] Titulo após Cloudflare:', postTitle);
+
+      if (postTitle.includes('moment') || postTitle.includes('Cloudflare') || postTitle === '') {
+        console.log('[CriminalCheck] Cloudflare ainda ativo, aguardando mais 15s...');
+        await new Promise(r => setTimeout(r, 15000));
+        const finalTitle = await page.title();
+        console.log('[CriminalCheck] Titulo final:', finalTitle);
       }
 
       console.log('[CriminalCheck] Fazendo POST via fetch no contexto do navegador...');

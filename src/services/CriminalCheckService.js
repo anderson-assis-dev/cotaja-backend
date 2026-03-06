@@ -1,6 +1,6 @@
 const User = require('../models/User');
 const { connect } = require('puppeteer-real-browser');
-const pdfParse = require('pdf-parse');
+const { PDFParse } = require('pdf-parse');
 const path = require('path');
 const fs = require('fs');
 const { execSync } = require('child_process');
@@ -162,7 +162,8 @@ class CriminalCheckService {
 
       try { fs.unlinkSync(pdfFilePath); } catch {}
 
-      const pdfData = await pdfParse(pdfBuffer);
+      const parser = new PDFParse({ data: pdfBuffer });
+      const pdfData = await parser.getText();
       const pdfText = pdfData.text;
 
       console.log('[CriminalCheck] Texto extraído do PDF:', pdfText.substring(0, 400));

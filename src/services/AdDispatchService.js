@@ -98,7 +98,7 @@ class AdDispatchService {
 
     const providerLat = ad.provider_lat ? Number(ad.provider_lat) : null;
     const providerLng = ad.provider_lng ? Number(ad.provider_lng) : null;
-    const radiusKm = ad.target_radius_km || 50;
+    const radiusKm = ad.target_radius_km || parseInt(process.env.PROVIDER_RADIUS_KM) || 500;
 
     let targetUsers = interestedUsers;
     if (providerLat && providerLng) {

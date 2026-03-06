@@ -161,7 +161,7 @@ class AdController {
         message,
         ad_type: purchase.ad_type,
         target_categories: req.body.target_categories || target_categories,
-        target_radius_km: target_radius_km || 50,
+        target_radius_km: target_radius_km || parseInt(process.env.PROVIDER_RADIUS_KM) || 500,
         scheduled_date,
         scheduled_time,
       });

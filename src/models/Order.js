@@ -266,7 +266,7 @@ class Order {
             }
 
             if (options.latitude && options.longitude) {
-                const radiusKm = options.radiusKm || 50;
+                const radiusKm = options.radiusKm || parseInt(process.env.PROVIDER_RADIUS_KM) || 500;
                 const latDiff = radiusKm / 111;
                 const lngDiff = radiusKm / (111 * Math.cos(options.latitude * Math.PI / 180));
                 query += ' AND latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?';

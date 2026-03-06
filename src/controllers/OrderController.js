@@ -529,7 +529,7 @@ class OrderController {
                 search,
                 latitude: providerLat,
                 longitude: providerLng,
-                radiusKm: 50,
+                radiusKm: parseInt(process.env.PROVIDER_RADIUS_KM) || 500,
                 withRelations: true,
             };
 

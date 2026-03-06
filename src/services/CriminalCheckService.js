@@ -1,10 +1,14 @@
 const User = require('../models/User');
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const pdfParse = require('pdf-parse');
 const path = require('path');
 const fs = require('fs');
 
+puppeteer.use(StealthPlugin());
+
 const PF_FORM_URL = 'https://servicos.pf.gov.br/sinic2-publico/';
+const PF_API_URL = 'https://servicos.pf.gov.br/sinic2-publico-rest/api/cac/gerar-cac-pdf';
 
 class CriminalCheckService {
   static async checkProvider(userId) {
@@ -16,124 +20,98 @@ class CriminalCheckService {
       throw new Error('Dados incompletos: nome, nome da mãe e data de nascimento são obrigatórios');
     }
 
-    const birthDate = CriminalCheckService.formatBirthDateBR(user.birth_date);
+    const birthDateISO = CriminalCheckService.formatBirthDateISO(user.birth_date);
+
+    const payload = {
+      cpf: null,
+      nome: user.name.toUpperCase(),
+      listaNacionalidade: null,
+      dtNascimento: birthDateISO,
+      coPaisNascimento: null,
+      noUfNascimento: null,
+      noMunicipioNascimento: null,
+      ufNascimento: null,
+      coMunicipioNascimento: null,
+      nomePai: '',
+      nomeMae: (user.mother_name || '').toUpperCase(),
+      documentoCac: [],
+    };
 
     console.log('[CriminalCheck] Iniciando verificação para:', user.name);
-
-    const downloadDir = path.join(__dirname, '../../uploads/temp');
-    if (!fs.existsSync(downloadDir)) fs.mkdirSync(downloadDir, { recursive: true });
 
     let browser;
     try {
       browser = await puppeteer.launch({
         headless: 'new',
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-blink-features=AutomationControlled',
+          '--disable-infobars',
+          '--window-size=1920,1080',
+        ],
       });
 
       const page = await browser.newPage();
-      await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-
-      const client = await page.createCDPSession();
-      await client.send('Page.setDownloadBehavior', {
-        behavior: 'allow',
-        downloadPath: downloadDir,
+      await page.setViewport({ width: 1920, height: 1080 });
+      await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+      await page.setExtraHTTPHeaders({
+        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
       });
 
-      console.log('[CriminalCheck] Abrindo formulário da PF...');
-      await page.goto(PF_FORM_URL, { waitUntil: 'networkidle0', timeout: 60000 });
-      await new Promise(r => setTimeout(r, 5000));
+      console.log('[CriminalCheck] Abrindo site da PF (stealth mode)...');
+      await page.goto(PF_FORM_URL, { waitUntil: 'networkidle2', timeout: 90000 });
 
-      console.log('[CriminalCheck] Preenchendo formulário...');
-
-      await page.waitForSelector('input[name="nome"], input[formcontrolname="nome"], #nome', { timeout: 15000 }).catch(() => {});
-
-      const filled = await page.evaluate((nome, nomeMae, dtNascimento) => {
-        const inputs = document.querySelectorAll('input');
-        let filledCount = 0;
-
-        for (const input of inputs) {
-          const name = (input.name || input.id || input.getAttribute('formcontrolname') || '').toLowerCase();
-          const placeholder = (input.placeholder || '').toLowerCase();
-          const label = input.closest('label')?.textContent?.toLowerCase() || '';
-          const ariaLabel = (input.getAttribute('aria-label') || '').toLowerCase();
-          const allText = name + ' ' + placeholder + ' ' + label + ' ' + ariaLabel;
-
-          if (allText.includes('nome completo') || (allText.includes('nome') && !allText.includes('mae') && !allText.includes('mãe') && !allText.includes('pai') && !allText.includes('municipio') && !allText.includes('uf'))) {
-            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-            nativeInputValueSetter.call(input, nome);
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-            filledCount++;
-          }
-
-          if (allText.includes('mae') || allText.includes('mãe')) {
-            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-            nativeInputValueSetter.call(input, nomeMae);
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-            filledCount++;
-          }
-
-          if (allText.includes('nascimento') && (input.type === 'date' || allText.includes('data'))) {
-            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-            nativeInputValueSetter.call(input, dtNascimento);
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-            filledCount++;
-          }
-        }
-
-        return filledCount;
-      }, user.name.toUpperCase(), (user.mother_name || '').toUpperCase(), birthDate);
-
-      console.log('[CriminalCheck] Campos preenchidos:', filled);
-
-      await new Promise(r => setTimeout(r, 1000));
-
-      const submitted = await page.evaluate(() => {
-        const buttons = document.querySelectorAll('button, input[type="submit"]');
-        for (const btn of buttons) {
-          const text = (btn.textContent || btn.value || '').toLowerCase();
-          if (text.includes('gerar') || text.includes('emitir') || text.includes('certid') || text.includes('enviar') || text.includes('consultar')) {
-            btn.click();
-            return true;
-          }
-        }
-        return false;
-      });
-
-      if (!submitted) {
-        console.log('[CriminalCheck] Botão de submit não encontrado, tentando form.submit()...');
-        await page.evaluate(() => {
-          const form = document.querySelector('form');
-          if (form) form.submit();
-        });
-      }
-
-      console.log('[CriminalCheck] Aguardando download do PDF...');
+      console.log('[CriminalCheck] Aguardando Cloudflare...');
       await new Promise(r => setTimeout(r, 15000));
 
-      const files = fs.readdirSync(downloadDir).filter(f => f.endsWith('.pdf')).sort((a, b) => {
-        return fs.statSync(path.join(downloadDir, b)).mtimeMs - fs.statSync(path.join(downloadDir, a)).mtimeMs;
-      });
+      const currentUrl = page.url();
+      console.log('[CriminalCheck] URL atual:', currentUrl);
+
+      const pageTitle = await page.title();
+      console.log('[CriminalCheck] Titulo da página:', pageTitle);
+
+      if (pageTitle.includes('moment') || pageTitle.includes('Cloudflare')) {
+        console.log('[CriminalCheck] Cloudflare detectado, aguardando mais 20s...');
+        await new Promise(r => setTimeout(r, 20000));
+      }
+
+      console.log('[CriminalCheck] Fazendo POST via fetch no contexto do navegador...');
+      const pdfBytes = await page.evaluate(async (apiUrl, body) => {
+        const res = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/pdf, application/json',
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          throw new Error(`HTTP ${res.status} - ${text.substring(0, 200)}`);
+        }
+
+        const arrayBuffer = await res.arrayBuffer();
+        return Array.from(new Uint8Array(arrayBuffer));
+      }, PF_API_URL, payload);
 
       await browser.close();
       browser = null;
 
-      if (files.length === 0) {
-        throw new Error('PDF não foi baixado');
-      }
+      const pdfBuffer = Buffer.from(pdfBytes);
+      console.log('[CriminalCheck] Resposta recebida, tamanho:', pdfBuffer.length, 'bytes');
 
-      const pdfPath = path.join(downloadDir, files[0]);
-      const pdfBuffer = fs.readFileSync(pdfPath);
-      console.log('[CriminalCheck] PDF encontrado:', files[0], '| Tamanho:', pdfBuffer.length, 'bytes');
+      if (pdfBuffer.length < 100) {
+        const text = pdfBuffer.toString('utf-8');
+        console.log('[CriminalCheck] Resposta pequena:', text);
+        throw new Error('Resposta inválida da PF: ' + text.substring(0, 200));
+      }
 
       const pdfData = await pdfParse(pdfBuffer);
       const pdfText = pdfData.text;
 
-      console.log('[CriminalCheck] Texto extraído:', pdfText.substring(0, 300));
-
-      fs.unlinkSync(pdfPath);
+      console.log('[CriminalCheck] Texto extraído do PDF:', pdfText.substring(0, 400));
 
       const naoConsta = pdfText.toUpperCase().includes('NÃO CONSTA');
 
@@ -175,14 +153,14 @@ class CriminalCheckService {
     }
   }
 
-  static formatBirthDateBR(dateValue) {
+  static formatBirthDateISO(dateValue) {
     if (!dateValue) return '';
     const d = new Date(dateValue);
     if (isNaN(d.getTime())) return '';
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
     const year = d.getFullYear();
-    return `${day}/${month}/${year}`;
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 }
 

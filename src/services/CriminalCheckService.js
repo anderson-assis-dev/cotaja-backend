@@ -53,17 +53,20 @@ class CriminalCheckService {
       const chromePath = process.env.CHROME_PATH || null;
       const isLinux = process.platform === 'linux';
 
-      if (!isLinux) {
-        try {
+      try {
+        if (isLinux) {
+          execSync('pkill -f chrome', { stdio: 'ignore' });
+        } else {
           execSync('pkill -f "Brave Browser"', { stdio: 'ignore' });
-          await new Promise(r => setTimeout(r, 2000));
-        } catch {}
-      }
+        }
+        await new Promise(r => setTimeout(r, 2000));
+      } catch {}
 
       const connectOpts = {
-        headless: isLinux ? true : false,
+        headless: false,
         turnstile: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--window-size=1920,1080'],
+        disableXvfb: false,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--window-size=1920,1080'],
       };
       if (chromePath) {
         connectOpts.customConfig = { chromePath };

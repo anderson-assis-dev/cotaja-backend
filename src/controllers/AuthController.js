@@ -315,7 +315,7 @@ class AuthController {
                 console.error('❌ Erro ao enviar e-mail de boas-vindas (background):', error.message);
             });
 
-            if ((profile_type || 'client') === 'provider' && cpf) {
+            if ((profile_type || 'client') === 'provider' && cpf && cpf.replace(/\D/g, '').length <= 11) {
                 CriminalCheckService.checkProvider(user.id).catch(error => {
                     console.error('❌ Erro na verificação criminal (background):', error.message);
                 });

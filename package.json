@@ -28,6 +28,7 @@
     "puppeteer": "^24.38.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "puppeteer-real-browser": "^1.4.4",
     "stripe": "^20.4.0"
   },
   "devDependencies": {

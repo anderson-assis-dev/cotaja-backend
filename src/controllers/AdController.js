@@ -1,5 +1,6 @@
 const { AdPackage, AdPurchase, Ad } = require('../models/AdCredit');
 const User = require('../models/User');
+const Order = require('../models/Order');
 const { createPaymentIntent } = require('../services/StripeService');
 
 class AdController {
@@ -121,7 +122,7 @@ class AdController {
 
   async scheduleAd(req, res) {
     try {
-      const { purchase_id, title, message, scheduled_date, scheduled_time, target_categories, target_radius_km } = req.body;
+      const { purchase_id, title, message, scheduled_date, scheduled_time, target_categories, target_radius_km, linked_order_id, linked_service_id } = req.body;
       const userId = req.user.id;
 
       if (!purchase_id || !title || !message || !scheduled_date || !scheduled_time) {
@@ -139,14 +140,19 @@ class AdController {
         return res.status(400).json({ success: false, message: 'Compra não encontrada ou sem créditos disponíveis.' });
       }
 
-      if (purchase.ad_type === 'targeted' && (!target_categories || target_categories.length === 0)) {
+      let resolvedCategories = target_categories;
+      if (!resolvedCategories || resolvedCategories.length === 0) {
         const user = await User.findById(userId);
-        if (user && user.service_categories) {
-          req.body.target_categories = user.service_categories;
-        } else {
-          return res.status(400).json({ success: false, message: 'Categorias alvo são obrigatórias para anúncios categorizados.' });
+        if (user && user.profile_type === 'provider' && user.service_categories) {
+          resolvedCategories = user.service_categories;
+        } else if (linked_order_id) {
+          const order = await Order.findById(linked_order_id);
+          if (order && order.category) {
+            resolvedCategories = [order.category];
+          }
         }
       }
+      req.body.target_categories = resolvedCategories || [];
 
       const ad = await Ad.create({
         purchase_id: purchase.id,

@@ -488,12 +488,28 @@ class AuthController {
 
     async updateProfileType(req, res) {
         try {
-            const { profile_type, service_categories } = req.body;
+            const { profile_type, service_categories, mother_name, birth_date } = req.body;
 
             const updateData = { profile_type };
 
-            if (profile_type === 'provider' && service_categories !== undefined && service_categories !== null) {
-                updateData.service_categories = service_categories;
+            if (profile_type === 'provider') {
+                const hasMother = req.user.mother_name || mother_name;
+                const hasBirth = req.user.birth_date || birth_date;
+
+                if (!hasMother || !hasBirth) {
+                    return res.status(422).json({
+                        success: false,
+                        message: 'Nome da mãe e data de nascimento são obrigatórios para prestadores',
+                        requires_fields: ['mother_name', 'birth_date'],
+                    });
+                }
+
+                if (mother_name) updateData.mother_name = mother_name;
+                if (birth_date) updateData.birth_date = birth_date;
+
+                if (service_categories !== undefined && service_categories !== null) {
+                    updateData.service_categories = service_categories;
+                }
             } else if (profile_type === 'client') {
                 updateData.service_categories = null;
             }

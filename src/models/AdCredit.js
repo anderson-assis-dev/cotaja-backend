@@ -20,9 +20,30 @@ class AdPackage {
       const [rows] = await connection.execute(
         'SELECT * FROM ad_packages WHERE active = 1 ORDER BY price_cents ASC'
       );
+      if (rows.length === 0) {
+        await AdPackage.ensureDefaults(connection);
+        const [seeded] = await connection.execute(
+          'SELECT * FROM ad_packages WHERE active = 1 ORDER BY price_cents ASC'
+        );
+        return seeded.map(r => new AdPackage(r));
+      }
       return rows.map(r => new AdPackage(r));
     } finally {
       connection.release();
+    }
+  }
+
+  static async ensureDefaults(connection) {
+    const defaults = [
+      ['Anúncio Único', 'single-5', 500, 1, 'single', 'Um anúncio avulso enviado para todos os usuários.'],
+      ['2 Anúncios Gerais', 'general-15', 1500, 2, 'general', 'Dois anúncios gerais enviados para todos sem filtro.'],
+      ['3 Anúncios Categorizados', 'targeted-25', 2500, 3, 'targeted', 'Três anúncios enviados apenas para usuários próximos e com interesse na sua categoria.'],
+    ];
+    for (const [name, slug, price, count, type, desc] of defaults) {
+      await connection.execute(
+        `INSERT IGNORE INTO ad_packages (name, slug, price_cents, ad_count, ad_type, description, active) VALUES (?, ?, ?, ?, ?, ?, 1)`,
+        [name, slug, price, count, type, desc]
+      );
     }
   }
 
@@ -214,7 +235,7 @@ class Ad {
     const connection = await pool.getConnection();
     try {
       const [rows] = await connection.execute(
-        `SELECT a.*, u.name as user_name, u.service_categories, u.latitude as provider_lat, u.longitude as provider_lng
+        `SELECT a.*, u.name as user_name, u.service_categories, u.latitude as provider_lat, u.longitude as provider_lng, u.profile_type
          FROM ads a
          JOIN users u ON a.user_id = u.id
          WHERE a.status = 'scheduled'
@@ -298,12 +319,47 @@ class UserSearchCategory {
          FROM user_search_categories usc
          JOIN users u ON usc.user_id = u.id
          WHERE usc.category IN (${placeholders})
+         AND usc.last_searched_at >= DATE_SUB(NOW(), INTERVAL 15 DAY)
          AND u.id != ?
          AND u.fcm_token IS NOT NULL
          AND u.fcm_token != ''`,
         [...categories, excludeUserId]
       );
       return rows;
+    } finally {
+      connection.release();
+    }
+  }
+
+  static async getProvidersForTargetedAd(categories, excludeUserId) {
+    const connection = await pool.getConnection();
+    try {
+      if (!categories || categories.length === 0) return [];
+      const [providers] = await connection.execute(
+        `SELECT u.id, u.fcm_token, u.device_platform, u.latitude, u.longitude,
+                u.service_categories,
+                COALESCE((
+                  SELECT AVG(pr.rating) FROM provider_ratings pr WHERE pr.provider_id = u.id
+                ), 0) as avg_rating,
+                COALESCE((
+                  SELECT COUNT(*) FROM provider_ratings pr WHERE pr.provider_id = u.id
+                ), 0) as ratings_count
+         FROM users u
+         WHERE u.profile_type = 'provider'
+         AND u.id != ?
+         AND u.fcm_token IS NOT NULL
+         AND u.fcm_token != ''
+         ORDER BY avg_rating DESC, ratings_count DESC`,
+        [excludeUserId]
+      );
+      return providers.filter(p => {
+        let cats = p.service_categories;
+        if (typeof cats === 'string') {
+          try { cats = JSON.parse(cats); } catch { cats = []; }
+        }
+        if (!Array.isArray(cats)) return false;
+        return categories.some(c => cats.includes(c));
+      });
     } finally {
       connection.release();
     }

@@ -17,9 +17,10 @@ class AdController {
   async getPackages(req, res) {
     try {
       const packages = await AdPackage.findAll();
+      console.log(`[AdController] getPackages: ${packages.length} pacotes`);
       return res.json({ success: true, data: packages });
     } catch (error) {
-      console.error('AdController.getPackages error:', error);
+      console.error('[AdController] getPackages error:', error);
       return res.status(500).json({ success: false, message: 'Erro ao listar pacotes.' });
     }
   }
@@ -29,12 +30,15 @@ class AdController {
       const { package_id, payment_method_id } = req.body;
       const userId = req.user.id;
 
+      console.log(`[AdController] purchasePackage: user=${userId} pkg=${package_id} pm=${payment_method_id ? 'sim' : 'nao'}`);
+
       if (!package_id || !payment_method_id) {
         return res.status(400).json({ success: false, message: 'Pacote e método de pagamento são obrigatórios.' });
       }
 
       const pkg = await AdPackage.findById(package_id);
       if (!pkg || !pkg.active) {
+        console.error(`[AdController] Pacote ${package_id} não encontrado ou inativo`);
         return res.status(404).json({ success: false, message: 'Pacote não encontrado.' });
       }
 
@@ -67,6 +71,7 @@ class AdController {
         });
 
         await AdPurchase.updateStatus(purchase.id, 'paid', paymentIntent.id);
+        console.log(`[AdController] Compra ${purchase.id} paga com sucesso (${pkg.slug})`);
 
         return res.json({
           success: true,
@@ -79,14 +84,14 @@ class AdController {
         });
       } catch (stripeError) {
         await AdPurchase.updateStatus(purchase.id, 'failed');
-        console.error('Stripe payment error:', stripeError.message);
+        console.error('[AdController] Stripe error:', stripeError.message);
         return res.status(400).json({
           success: false,
           message: stripeError.message || 'Erro ao processar pagamento.',
         });
       }
     } catch (error) {
-      console.error('AdController.purchasePackage error:', error);
+      console.error('[AdController] purchasePackage error:', error);
       return res.status(500).json({ success: false, message: 'Erro ao comprar pacote.' });
     }
   }
@@ -161,7 +166,7 @@ class AdController {
         message,
         ad_type: purchase.ad_type,
         target_categories: req.body.target_categories || target_categories,
-        target_radius_km: target_radius_km || parseInt(process.env.PROVIDER_RADIUS_KM) || 500,
+        target_radius_km: purchase.ad_type === 'targeted' ? 100 : null,
         scheduled_date,
         scheduled_time,
       });

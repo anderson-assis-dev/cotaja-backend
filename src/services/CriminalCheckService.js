@@ -40,8 +40,8 @@ class CriminalCheckService {
       };
     }
 
-    if (!user.name || !user.mother_name || !user.birth_date) {
-      throw new Error('Dados incompletos: nome, nome da mãe e data de nascimento são obrigatórios');
+    if (!user.name || !user.cpf || !user.mother_name || !user.birth_date) {
+      throw new Error('Dados incompletos: nome, CPF, nome da mãe e data de nascimento são obrigatórios');
     }
 
     const birthDateBR = CriminalCheckService.formatBirthDateBR(user.birth_date);

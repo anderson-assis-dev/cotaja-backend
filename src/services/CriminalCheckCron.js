@@ -38,6 +38,8 @@ class CriminalCheckCron {
          FROM users
          WHERE profile_type = 'provider'
            AND criminal_check = 0
+           AND cpf IS NOT NULL
+           AND cpf != ''
            AND mother_name IS NOT NULL
            AND mother_name != ''
            AND birth_date IS NOT NULL

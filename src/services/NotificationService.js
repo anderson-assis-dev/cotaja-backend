@@ -209,6 +209,43 @@ class NotificationService {
             throw error;
         }
     }
+
+    async notifyProviderAboutAcceptanceCancelled(proposal) {
+        try {
+            await proposal.loadRelations();
+
+            if (!proposal.order) return;
+
+            await this.createNotification({
+                user_id: proposal.provider_id,
+                type: 'acceptance_cancelled',
+                title: 'Aceitação cancelada',
+                message: `O cliente cancelou a aceitação da sua proposta para "${proposal.order.title}". Sua proposta está novamente em análise.`,
+                data: {
+                    proposal_id: proposal.id,
+                    order_id: proposal.order_id,
+                    order_title: proposal.order.title
+                }
+            });
+
+            try {
+                const provider = await User.findById(proposal.provider_id);
+                if (provider && provider.fcm_token) {
+                    await this.pushService.sendAlert({
+                        registration_id: provider.fcm_token,
+                        device: provider.device_platform || 'ios',
+                        title: 'Aceitação cancelada',
+                        message: `O cliente cancelou a aceitação para "${proposal.order.title}". Sua proposta continua disponível.`,
+                        sound: 'default'
+                    });
+                }
+            } catch (pushError) {
+                console.error('Erro ao enviar push de cancelamento de aceitação:', pushError.message);
+            }
+        } catch (error) {
+            console.error('Erro ao notificar prestador sobre cancelamento de aceitação:', error);
+        }
+    }
 }
 
 module.exports = new NotificationService();

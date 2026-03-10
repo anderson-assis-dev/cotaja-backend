@@ -522,13 +522,21 @@ class OrderController {
                 ? user.service_categories
                 : null;
 
+            // Quando o usuário filtra por CEP, não aplicar o filtro geográfico por coordenadas
+            // pois pedidos sem lat/lng seriam excluídos pela cláusula BETWEEN
+            const useGeoFilter = !cep && providerLat && providerLng;
+
+            // Quando o usuário busca explicitamente por CEP ou texto, não filtrar pelas categorias
+            // do prestador — ele quer ver todas as demandas naquela região/busca
+            const useProviderCategories = !cep && !search && !category && providerCategories;
+
             const findParams = {
                 category,
-                categories: !category && providerCategories ? providerCategories : undefined,
+                categories: useProviderCategories ? providerCategories : undefined,
                 cep,
                 search,
-                latitude: providerLat,
-                longitude: providerLng,
+                latitude: useGeoFilter ? providerLat : null,
+                longitude: useGeoFilter ? providerLng : null,
                 radiusKm: parseInt(process.env.PROVIDER_RADIUS_KM) || 500,
                 withRelations: true,
             };

@@ -10,10 +10,12 @@ const {
 router.use(authenticateToken);
 
 router.get('/', proposalController.index);
+router.get('/visibility', proposalController.visibility);
 router.post('/', createProposalValidation, proposalController.store);
 router.get('/:id', proposalController.show);
 router.put('/:id', updateProposalValidation, proposalController.update);
 router.post('/:id/accept', proposalController.accept);
+router.post('/:id/cancel-acceptance', proposalController.cancelAcceptance);
 router.post('/:id/reject', proposalController.reject);
 router.post('/:id/withdraw', proposalController.withdraw);
 

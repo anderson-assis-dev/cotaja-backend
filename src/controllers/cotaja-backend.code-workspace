@@ -5,6 +5,12 @@
 		},
 		{
 			"path": "../../../cotaja"
+		},
+		{
+			"path": "../../../cotaja-landing"
+		},
+		{
+			"path": "../../../painel-cotaja"
 		}
 	],
 	"settings": {}

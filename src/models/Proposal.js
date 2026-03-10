@@ -7,6 +7,8 @@ class Proposal {
         this.deadline = data.deadline || null;
         this.description = data.description || null;
         this.status = data.status || 'pending';
+        this.accepted_at = data.accepted_at || null;
+        this.view_count = data.view_count || 0;
         this.order_id = data.order_id || null;
         this.provider_id = data.provider_id || null;
         this.created_at = data.created_at || null;

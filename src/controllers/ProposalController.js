@@ -194,6 +194,12 @@ class ProposalController {
                     message: 'Acesso negado'
                 });
             }
+            if (user.isClient()) {
+                pool.execute(
+                    'UPDATE proposals SET view_count = view_count + 1 WHERE id = ?',
+                    [proposal.id]
+                ).catch(() => {});
+            }
 
             return res.json({
                 success: true,
@@ -201,6 +207,81 @@ class ProposalController {
             });
         } catch (error) {
             console.error('Erro ao obter proposta:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Erro interno do servidor'
+            });
+        }
+    }
+
+    async visibility(req, res) {
+        try {
+            const user = req.user;
+
+            if (!user.isProvider()) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Acesso negado'
+                });
+            }
+
+            const connection = await pool.getConnection();
+            try {
+                // Métricas de visualização das propostas do provider
+                const [viewRows] = await connection.execute(
+                    `SELECT
+                        COUNT(*) AS total_proposals,
+                        SUM(view_count) AS total_views,
+                        SUM(CASE WHEN view_count > 0 THEN 1 ELSE 0 END) AS proposals_with_views,
+                        SUM(CASE WHEN status = 'accepted' THEN 1 ELSE 0 END) AS total_accepted,
+                        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS total_pending
+                     FROM proposals
+                     WHERE provider_id = ?`,
+                    [user.id]
+                );
+
+                // Visualizações nos últimos 7 dias (propostas atualizadas recentemente com views)
+                const [weekRows] = await connection.execute(
+                    `SELECT COALESCE(SUM(view_count), 0) AS views_this_week
+                     FROM proposals
+                     WHERE provider_id = ?
+                       AND updated_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                       AND view_count > 0`,
+                    [user.id]
+                );
+
+                // Cotações em aberto compatíveis com o provider (aproximação de "apareceu em buscas")
+                const [searchRows] = await connection.execute(
+                    `SELECT COUNT(*) AS available_orders
+                     FROM orders
+                     WHERE status = 'open'`,
+                    []
+                );
+
+                const stats = viewRows[0];
+                const totalProposals = Number(stats.total_proposals) || 0;
+                const totalAccepted = Number(stats.total_accepted) || 0;
+
+                return res.json({
+                    success: true,
+                    data: {
+                        total_views: Number(stats.total_views) || 0,
+                        views_this_week: Number(weekRows[0].views_this_week) || 0,
+                        proposals_with_views: Number(stats.proposals_with_views) || 0,
+                        total_proposals: totalProposals,
+                        total_pending: Number(stats.total_pending) || 0,
+                        total_accepted: totalAccepted,
+                        conversion_rate: totalProposals > 0
+                            ? Math.round((totalAccepted / totalProposals) * 100)
+                            : 0,
+                        available_orders: Number(searchRows[0].available_orders) || 0,
+                    }
+                });
+            } finally {
+                connection.release();
+            }
+        } catch (error) {
+            console.error('Erro ao buscar métricas de visibilidade:', error);
             return res.status(500).json({
                 success: false,
                 message: 'Erro interno do servidor'
@@ -319,7 +400,7 @@ class ProposalController {
 
             try {
                 await connection.execute(
-                    'UPDATE proposals SET status = ?, updated_at = NOW() WHERE id = ?',
+                    'UPDATE proposals SET status = ?, accepted_at = NOW(), updated_at = NOW() WHERE id = ?',
                     [Proposal.STATUS_ACCEPTED, proposal.id]
                 );
 
@@ -388,6 +469,85 @@ class ProposalController {
                 success: false,
                 message: 'Erro ao aceitar proposta'
             });
+        } finally {
+            connection.release();
+        }
+    }
+
+    async cancelAcceptance(req, res) {
+        const connection = await pool.getConnection();
+
+        try {
+            const { id } = req.params;
+            const user = req.user;
+
+            const proposal = await Proposal.findById(id, true);
+            if (!proposal) {
+                return res.status(404).json({ success: false, message: 'Proposta não encontrada' });
+            }
+
+            if (!user.isClient() || proposal.order.client_id !== user.id) {
+                return res.status(403).json({ success: false, message: 'Acesso negado' });
+            }
+
+            if (proposal.status !== Proposal.STATUS_ACCEPTED) {
+                return res.status(400).json({ success: false, message: 'Esta proposta não está aceita' });
+            }
+
+            if (proposal.order.status !== Order.STATUS_IN_PROGRESS) {
+                return res.status(400).json({ success: false, message: 'O pedido não está em andamento' });
+            }
+
+            if (proposal.order.scheduled_date) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Não é possível cancelar a aceitação após um agendamento ter sido proposto'
+                });
+            }
+
+            await connection.beginTransaction();
+
+            try {
+                // Revert accepted proposal to pending
+                await connection.execute(
+                    'UPDATE proposals SET status = ?, accepted_at = NULL, updated_at = NOW() WHERE id = ?',
+                    [Proposal.STATUS_PENDING, proposal.id]
+                );
+
+                // Revert all rejected proposals for this order back to pending
+                await connection.execute(
+                    'UPDATE proposals SET status = ?, updated_at = NOW() WHERE order_id = ? AND status = ? AND id != ?',
+                    [Proposal.STATUS_PENDING, proposal.order_id, Proposal.STATUS_REJECTED, proposal.id]
+                );
+
+                // Revert order to open
+                await connection.execute(
+                    'UPDATE orders SET status = ?, provider_id = NULL, accepted_proposal_id = NULL, updated_at = NOW() WHERE id = ?',
+                    [Order.STATUS_OPEN, proposal.order_id]
+                );
+
+                await connection.commit();
+
+                try {
+                    const freshProposal = await Proposal.findById(proposal.id, true);
+                    if (freshProposal) {
+                        await notificationService.notifyProviderAboutAcceptanceCancelled(freshProposal);
+                    }
+                } catch (error) {
+                    console.error('Erro ao enviar notificação de cancelamento de aceitação:', error);
+                }
+
+                return res.json({
+                    success: true,
+                    message: 'Aceitação cancelada. Você pode selecionar outra proposta.'
+                });
+            } catch (error) {
+                await connection.rollback();
+                throw error;
+            }
+        } catch (error) {
+            console.error('Erro ao cancelar aceitação:', error);
+            return res.status(500).json({ success: false, message: 'Erro ao cancelar aceitação' });
         } finally {
             connection.release();
         }

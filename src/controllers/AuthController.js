@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const path = require('path');
 const { createCustomer } = require('../services/StripeService');
 const CriminalCheckService = require('../services/CriminalCheckService');
+const { pool } = require('../config/database');
 
 const otpStore = new Map();
 
@@ -378,6 +379,13 @@ class AuthController {
                 });
             }
 
+            if (user.deleted_at) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Esta conta foi excluída. Para acessar a plataforma, realize um novo cadastro.'
+                });
+            }
+
             if (user.activate !== 1) {
                 return res.status(403).json({
                     success: false,
@@ -438,6 +446,57 @@ class AuthController {
             success: true,
             message: 'Logout realizado com sucesso'
         });
+    }
+
+    async deleteAccount(req, res) {
+        try {
+            const user = req.user;
+            const connection = await pool.getConnection();
+
+            try {
+                // Bloquear se cliente tiver ordens abertas ou em andamento
+                const [[{ clientActiveOrders }]] = await connection.execute(
+                    `SELECT COUNT(*) AS clientActiveOrders FROM orders
+                     WHERE client_id = ? AND status IN ('open', 'in_progress')`,
+                    [user.id]
+                );
+
+                if (clientActiveOrders > 0) {
+                    return res.status(422).json({
+                        success: false,
+                        message: `Você possui ${clientActiveOrders} pedido(s) aberto(s) ou em andamento. Finalize ou cancele antes de excluir sua conta.`
+                    });
+                }
+
+                // Bloquear se prestador tiver ordens em andamento onde é o prestador
+                const [[{ providerActiveOrders }]] = await connection.execute(
+                    `SELECT COUNT(*) AS providerActiveOrders FROM orders
+                     WHERE provider_id = ? AND status = 'in_progress'`,
+                    [user.id]
+                );
+
+                if (providerActiveOrders > 0) {
+                    return res.status(422).json({
+                        success: false,
+                        message: `Você possui ${providerActiveOrders} serviço(s) em andamento. Conclua-os antes de excluir sua conta.`
+                    });
+                }
+            } finally {
+                connection.release();
+            }
+
+            await user.softDelete();
+            return res.json({
+                success: true,
+                message: 'Conta excluída com sucesso'
+            });
+        } catch (error) {
+            console.error('Erro ao excluir conta:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Erro interno do servidor'
+            });
+        }
     }
 
     async me(req, res) {

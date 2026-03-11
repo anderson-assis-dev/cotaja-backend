@@ -44,5 +44,6 @@ router.post('/logout', authenticateToken, authController.logout);
 router.post('/fcm-token', authenticateToken, fcmTokenValidation, authController.saveFcmToken);
 router.put('/profile', authenticateToken, authController.updateProfile);
 router.put('/profile-type', authenticateToken, authController.updateProfileType);
+router.delete('/account', authenticateToken, authController.deleteAccount.bind(authController));
 
 module.exports = router;

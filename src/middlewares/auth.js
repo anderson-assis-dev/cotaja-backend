@@ -14,6 +14,13 @@ const authenticateToken = async (req, res, next) => {
             });
         }
 
+        if (user.deleted_at) {
+            return res.status(403).json({
+                success: false,
+                message: 'Esta conta foi excluída.'
+            });
+        }
+
         req.user = user;
         req.token = token;
         next();

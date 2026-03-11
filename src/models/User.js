@@ -36,6 +36,7 @@ class User {
         this.avatar_base64 = data.avatar_base64 || null;
         this.activate = data.activate !== undefined ? data.activate : 0;
         this.activation_token = data.activation_token || null;
+        this.deleted_at = data.deleted_at || null;
     }
 
     static async create(userData) {
@@ -325,6 +326,25 @@ class User {
         const connection = await pool.getConnection();
         try {
             await connection.execute('DELETE FROM users WHERE id = ?', [this.id]);
+            return true;
+        } finally {
+            connection.release();
+        }
+    }
+
+    async softDelete() {
+        if (!this.id) return false;
+
+        const connection = await pool.getConnection();
+        try {
+            // Obfuscate email to free it for future re-registration
+            const obfuscatedEmail = `deleted_${this.id}@deleted.invalid`;
+            await connection.execute(
+                'UPDATE users SET deleted_at = NOW(), email = ?, updated_at = NOW() WHERE id = ?',
+                [obfuscatedEmail, this.id]
+            );
+            this.deleted_at = new Date();
+            this.email = obfuscatedEmail;
             return true;
         } finally {
             connection.release();

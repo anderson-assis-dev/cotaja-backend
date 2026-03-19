@@ -13,6 +13,8 @@ const {
 router.post('/register', registerValidation, authController.register);
 router.post('/login', loginValidation, authController.login);
 router.get('/activate/:token', authController.activate.bind(authController));
+router.post('/resend-activation', authController.resendActivation.bind(authController));
+router.post('/verify-activation', authController.verifyActivation.bind(authController));
 
 router.post('/logout', authenticateToken, authController.logout);
 router.get('/me', authenticateToken, authController.me);

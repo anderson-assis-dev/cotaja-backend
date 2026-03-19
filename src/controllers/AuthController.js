@@ -252,6 +252,77 @@ async function sendOtpEmail(user, otp) {
     });
 }
 
+async function sendActivationCodeEmail(user, code) {
+    const mailPort = Number.parseInt(process.env.MAIL_PORT) || 465;
+    const transporter = nodemailer.createTransport({
+        host: process.env.MAIL_HOST || 'smtp.gmail.com',
+        port: mailPort,
+        secure: mailPort === 465,
+        auth: { user: process.env.MAIL_USERNAME, pass: process.env.MAIL_PASSWORD },
+        tls: { rejectUnauthorized: false },
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 15000,
+    });
+
+    await transporter.sendMail({
+        from: `"${process.env.MAIL_FROM_NAME}" <${process.env.MAIL_FROM_ADDRESS}>`,
+        to: user.email,
+        subject: 'Cotaja — Ative sua conta',
+        html: `
+            <!DOCTYPE html>
+            <html lang="pt-BR">
+            <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+            <body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,sans-serif;">
+              <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f4f4f4;padding:20px 0;">
+                <tr><td align="center">
+                  <table cellpadding="0" cellspacing="0" border="0" width="600" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+                    <tr>
+                      <td style="background-color:#ffffff;padding:40px 40px 30px 40px;text-align:center;border-bottom:3px solid #4f46e5;">
+                        <img src="cid:cotaja-logo" alt="Cotaja" style="max-width:200px;height:auto;display:block;margin:0 auto;" />
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:40px 40px 20px 40px;">
+                        <h2 style="margin:0 0 20px 0;color:#1f2937;font-size:22px;text-align:center;">Ative sua Conta</h2>
+                        <p style="margin:0 0 15px 0;color:#4b5563;font-size:16px;line-height:1.6;">Olá, <strong>${user.name}</strong>!</p>
+                        <p style="margin:0 0 24px 0;color:#4b5563;font-size:16px;line-height:1.6;">
+                          Use o código abaixo no aplicativo para ativar sua conta. Ele é válido por <strong>30 minutos</strong>.
+                        </p>
+                        <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                          <tr><td align="center" style="padding:8px 0 32px 0;">
+                            <div style="display:inline-block;background-color:#4f46e5;color:#ffffff;font-size:36px;font-weight:bold;letter-spacing:12px;padding:18px 36px;border-radius:12px;">
+                              ${code}
+                            </div>
+                          </td></tr>
+                        </table>
+                        <p style="margin:0 0 10px 0;color:#9ca3af;font-size:13px;text-align:center;">
+                          Se você não solicitou essa ativação, ignore este email.
+                        </p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="background-color:#1f2937;padding:24px 40px;text-align:center;">
+                        <p style="margin:0 0 8px 0;color:#ffffff;font-size:14px;"><strong>COTAJA</strong></p>
+                        <p style="margin:0;color:#9ca3af;font-size:13px;">contato@cotaja.io &nbsp;|&nbsp; www.cotaja.io</p>
+                      </td>
+                    </tr>
+                  </table>
+                </td></tr>
+              </table>
+            </body>
+            </html>
+        `,
+        attachments: [
+            {
+                filename: 'logo.png',
+                path: path.join(__dirname, '../../assets/images/logo.png'),
+                cid: 'cotaja-logo',
+            },
+        ],
+    });
+}
+
 class AuthController {
     async register(req, res) {
         try {
@@ -389,6 +460,8 @@ class AuthController {
             if (user.activate !== 1) {
                 return res.status(403).json({
                     success: false,
+                    requiresActivation: true,
+                    email: user.email,
                     message: 'Sua conta ainda não foi ativada. Verifique seu email para ativar sua conta.'
                 });
             }
@@ -732,6 +805,81 @@ class AuthController {
         } catch (error) {
             console.error('Erro ao enviar OTP:', error);
             return res.status(500).json({ success: false, message: 'Erro ao enviar código. Tente novamente.' });
+        }
+    }
+
+    async resendActivation(req, res) {
+        try {
+            const { email } = req.body;
+            if (!email) {
+                return res.status(400).json({ success: false, message: 'Email é obrigatório.' });
+            }
+
+            const user = await User.findByEmail(email);
+            if (!user || user.deleted_at) {
+                return res.json({ success: true, message: 'Se o email estiver cadastrado, você receberá um código de ativação.' });
+            }
+
+            if (user.activate === 1) {
+                return res.status(400).json({ success: false, message: 'Esta conta já está ativa.' });
+            }
+
+            const code = String(crypto.randomInt(100000, 999999));
+            await user.update({ activation_token: code });
+
+            sendActivationCodeEmail(user, code).catch(err => {
+                console.error('❌ Erro ao enviar email de ativação:', err.message);
+            });
+
+            return res.json({ success: true, message: 'Código de ativação enviado para o seu email.' });
+        } catch (error) {
+            console.error('Erro ao reenviar ativação:', error);
+            return res.status(500).json({ success: false, message: 'Erro ao enviar código. Tente novamente.' });
+        }
+    }
+
+    async verifyActivation(req, res) {
+        try {
+            const { email, token } = req.body;
+
+            if (!email || !token) {
+                return res.status(400).json({ success: false, message: 'Email e código são obrigatórios.' });
+            }
+
+            const user = await User.findByEmail(email);
+            if (!user || user.deleted_at) {
+                return res.status(400).json({ success: false, message: 'Código inválido ou expirado.' });
+            }
+
+            if (user.activate === 1) {
+                return res.status(400).json({ success: false, message: 'Esta conta já está ativa. Faça login normalmente.' });
+            }
+
+            if (!user.activation_token || user.activation_token !== token.trim()) {
+                return res.status(400).json({ success: false, message: 'Código inválido. Verifique e tente novamente.' });
+            }
+
+            await user.update({
+                activate: 1,
+                email_verified_at: new Date().toISOString().slice(0, 19).replace('T', ' '),
+                activation_token: null
+            });
+
+            const jwtToken = generateToken({ userId: user.id });
+
+            console.log('✅ Conta ativada via código para:', user.email);
+
+            return res.json({
+                success: true,
+                message: 'Conta ativada com sucesso!',
+                data: {
+                    user: user.toJSON(),
+                    token: jwtToken
+                }
+            });
+        } catch (error) {
+            console.error('Erro ao verificar ativação:', error);
+            return res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
         }
     }
 

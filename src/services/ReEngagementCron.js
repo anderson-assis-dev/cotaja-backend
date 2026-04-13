@@ -1,6 +1,6 @@
 const dynamicNotificationService = require('./DynamicNotificationService');
 
-const RUN_HOURS = [8, 19];
+const RUN_HOURS = [8, 11, 14, 17, 19];
 
 class ReEngagementCron {
     constructor() {

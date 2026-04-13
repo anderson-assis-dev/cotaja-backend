@@ -1,5 +1,6 @@
 const { verifyToken, extractTokenFromHeader } = require('../utils/jwt');
 const User = require('../models/User');
+const { pool } = require('../config/database');
 
 const authenticateToken = async (req, res, next) => {
     try {
@@ -23,6 +24,14 @@ const authenticateToken = async (req, res, next) => {
 
         req.user = user;
         req.token = token;
+
+        pool.getConnection().then(conn => {
+            conn.execute(
+                'UPDATE users SET last_active = NOW() WHERE id = ?',
+                [user.id]
+            ).catch(() => {}).finally(() => conn.release());
+        }).catch(() => {});
+
         next();
     } catch (error) {
         const AUTH_MESSAGES = ['Token inválido', 'Token não fornecido', 'Formato de token inválido'];

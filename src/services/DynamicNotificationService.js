@@ -3,15 +3,20 @@ const PushNotificationService = require('./PushNotificationService');
 const Notification = require('../models/Notification');
 
 const COOLDOWNS = {
-    client_open_order_48h:        2,
-    client_unread_proposal_24h:   1,
-    client_inactive_7d:           7,
-    client_inactive_30d:          15,
-    client_pending_rating:        3,
-    provider_no_ad_3d:            7,
-    provider_proposal_pending_5d: 5,
-    provider_no_accepted_month:   10,
-    provider_unused_credits:      7,
+    client_open_order_48h:            2,
+    client_unread_proposal_24h:       1,
+    client_inactive_7d:               7,
+    client_inactive_30d:              15,
+    client_pending_rating:            3,
+    client_welcome_first_order:       1,
+    client_proposal_about_to_expire:  2,
+    client_proposal_expiring:         5,
+    client_order_completed_no_reorder: 14,
+    provider_no_ad_3d:                7,
+    provider_proposal_pending_5d:     5,
+    provider_no_accepted_month:       10,
+    provider_unused_credits:          7,
+    provider_profile_incomplete:      1,
 };
 
 class DynamicNotificationService {
@@ -328,6 +333,175 @@ class DynamicNotificationService {
         }
     }
 
+    async checkClientWelcomeFirstOrder() {
+        const connection = await pool.getConnection();
+        try {
+            const [rows] = await connection.execute(
+                `SELECT id, email, fcm_token, device_platform
+                 FROM users
+                 WHERE profile_type = 'client'
+                   AND deleted_at IS NULL
+                   AND fcm_token IS NOT NULL AND fcm_token != ''
+                   AND created_at <= DATE_SUB(NOW(), INTERVAL 2 DAY)
+                   AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                   AND NOT EXISTS (
+                       SELECT 1 FROM orders o WHERE o.client_id = users.id
+                   )`
+            );
+            let sent = 0;
+            for (const row of rows) {
+                const ok = await this._send(row, 'client_welcome_first_order',
+                    'Bem-vindo à Cotaja! Crie seu primeiro pedido 🎉',
+                    'Encontre profissionais qualificados perto de você em minutos. É rápido e gratuito!',
+                    { screen: 'new_order' }
+                );
+                if (ok) sent++;
+            }
+            console.log(`[DynNotif] client_welcome_first_order: ${sent}/${rows.length} enviados`);
+        } finally {
+            connection.release();
+        }
+    }
+
+    async checkClientProposalAboutToExpire() {
+        const connection = await pool.getConnection();
+        try {
+            // Proposals are considered to expire after 7 days; notify when 24h remain (created 6+ days ago)
+            const [rows] = await connection.execute(
+                `SELECT DISTINCT u.id, u.email, u.fcm_token, u.device_platform,
+                        o.id AS order_id, o.title,
+                        COUNT(p.id) AS proposal_count
+                 FROM proposals p
+                 JOIN orders o ON o.id = p.order_id
+                 JOIN users u ON u.id = o.client_id
+                 WHERE p.status = 'pending'
+                   AND o.status = 'open'
+                   AND p.created_at <= DATE_SUB(NOW(), INTERVAL 6 DAY)
+                   AND p.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                   AND u.deleted_at IS NULL
+                   AND u.fcm_token IS NOT NULL AND u.fcm_token != ''
+                 GROUP BY u.id, o.id, o.title`
+            );
+            let sent = 0;
+            for (const row of rows) {
+                const count = row.proposal_count;
+                const ok = await this._send(row, 'client_proposal_about_to_expire',
+                    'Suas propostas vencem em breve! ⏳',
+                    `${count > 1 ? count + ' propostas' : 'Uma proposta'} para "${row.title}" ${count > 1 ? 'vencem' : 'vence'} em menos de 24h. Não perca!`,
+                    { order_id: String(row.order_id) }
+                );
+                if (ok) sent++;
+            }
+            console.log(`[DynNotif] client_proposal_about_to_expire: ${sent}/${rows.length} enviados`);
+        } finally {
+            connection.release();
+        }
+    }
+
+    async checkClientProposalExpiring() {
+        const connection = await pool.getConnection();
+        try {
+            // Order accepted (in_progress) but stalled for 5+ days — nudge client to follow up
+            const [rows] = await connection.execute(
+                `SELECT u.id, u.email, u.fcm_token, u.device_platform,
+                        o.id AS order_id, o.title
+                 FROM orders o
+                 JOIN users u ON u.id = o.client_id
+                 WHERE o.status = 'in_progress'
+                   AND o.updated_at <= DATE_SUB(NOW(), INTERVAL 5 DAY)
+                   AND u.deleted_at IS NULL
+                   AND u.fcm_token IS NOT NULL AND u.fcm_token != ''`
+            );
+            let sent = 0;
+            for (const row of rows) {
+                const ok = await this._send(row, 'client_proposal_expiring',
+                    'Como está andando seu serviço? 🔧',
+                    `O pedido "${row.title}" está em andamento há alguns dias. Tudo certo com o profissional?`,
+                    { order_id: String(row.order_id) }
+                );
+                if (ok) sent++;
+            }
+            console.log(`[DynNotif] client_proposal_expiring: ${sent}/${rows.length} enviados`);
+        } finally {
+            connection.release();
+        }
+    }
+
+    async checkClientOrderCompletedNoReorder() {
+        const connection = await pool.getConnection();
+        try {
+            const [rows] = await connection.execute(
+                `SELECT u.id, u.email, u.fcm_token, u.device_platform,
+                        MAX(o.updated_at) AS last_completed_at
+                 FROM users u
+                 JOIN orders o ON o.client_id = u.id AND o.status = 'completed'
+                 WHERE u.profile_type = 'client'
+                   AND u.deleted_at IS NULL
+                   AND u.fcm_token IS NOT NULL AND u.fcm_token != ''
+                 GROUP BY u.id, u.email, u.fcm_token, u.device_platform
+                 HAVING last_completed_at <= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                    AND last_completed_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)
+                    AND NOT EXISTS (
+                        SELECT 1 FROM orders o2
+                        WHERE o2.client_id = u.id
+                          AND o2.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                    )`
+            );
+            let sent = 0;
+            for (const row of rows) {
+                const ok = await this._send(row, 'client_order_completed_no_reorder',
+                    'Precisa de um profissional novamente? 🏠',
+                    'Você já usou a Cotaja antes e adorou! Abra um novo pedido e encontre o profissional certo.',
+                    { screen: 'new_order' }
+                );
+                if (ok) sent++;
+            }
+            console.log(`[DynNotif] client_order_completed_no_reorder: ${sent}/${rows.length} enviados`);
+        } finally {
+            connection.release();
+        }
+    }
+
+    async checkProviderProfileIncomplete() {
+        const connection = await pool.getConnection();
+        try {
+            const [rows] = await connection.execute(
+                `SELECT u.id, u.email, u.fcm_token, u.device_platform,
+                        (u.avatar_base64 IS NULL OR u.avatar_base64 = '') AS missing_avatar,
+                        (SELECT COUNT(*) FROM services s WHERE s.provider_id = u.id AND s.status = 'active') AS service_count
+                 FROM users u
+                 WHERE u.profile_type = 'provider'
+                   AND u.deleted_at IS NULL
+                   AND u.fcm_token IS NOT NULL AND u.fcm_token != ''
+                   AND u.created_at <= DATE_SUB(NOW(), INTERVAL 2 DAY)
+                   AND (
+                       u.avatar_base64 IS NULL OR u.avatar_base64 = ''
+                       OR NOT EXISTS (
+                           SELECT 1 FROM services s
+                           WHERE s.provider_id = u.id AND s.status = 'active'
+                       )
+                   )`
+            );
+            let sent = 0;
+            for (const row of rows) {
+                const missing = [];
+                if (row.missing_avatar) missing.push('foto de perfil');
+                if (row.service_count === 0) missing.push('serviços cadastrados');
+                const missingText = missing.join(' e ');
+
+                const ok = await this._send(row, 'provider_profile_incomplete',
+                    'Seu perfil está incompleto! 📝',
+                    `Adicione ${missingText} para transmitir mais confiança e atrair mais clientes.`,
+                    { screen: 'profile' }
+                );
+                if (ok) sent++;
+            }
+            console.log(`[DynNotif] provider_profile_incomplete: ${sent}/${rows.length} enviados`);
+        } finally {
+            connection.release();
+        }
+    }
+
     async checkProviderUnusedAdCredits() {
         const connection = await pool.getConnection();
         try {
@@ -373,10 +547,15 @@ class DynamicNotificationService {
             this.checkClientInactive7Days(),
             this.checkClientRetentionCycle(),
             this.checkClientPendingRating(),
+            this.checkClientWelcomeFirstOrder(),
+            this.checkClientProposalAboutToExpire(),
+            this.checkClientProposalExpiring(),
+            this.checkClientOrderCompletedNoReorder(),
             this.checkProviderNoAdAfterRegistration(),
             this.checkProviderProposalPending(),
             this.checkProviderNoAcceptedProposalThisMonth(),
             this.checkProviderUnusedAdCredits(),
+            this.checkProviderProfileIncomplete(),
         ]);
 
         results.forEach((r, i) => {

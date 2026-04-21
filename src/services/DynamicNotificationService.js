@@ -3,6 +3,21 @@ const PushNotificationService = require('./PushNotificationService');
 const Notification = require('../models/Notification');
 const emailService = require('./EmailService');
 
+const DAILY_CAP = 2;
+
+const MARKETING_TRIGGERS = new Set([
+    'client_daily_inspire',
+    'provider_daily_grow',
+    'client_inactive_7d',
+    'client_inactive_30d',
+    'provider_no_ad_3d',
+    'provider_no_accepted_month',
+    'provider_proposal_pending_5d',
+    'provider_unused_credits',
+    'provider_profile_incomplete',
+    'client_order_completed_no_reorder',
+]);
+
 const EMAIL_TRIGGERS = {
     client_welcome_first_order:        { subject: 'Bem-vindo à Cotaja! Crie seu primeiro pedido', cta: 'Criar meu primeiro pedido' },
     client_proposal_about_to_expire:   { subject: 'Suas propostas vencem em breve!', cta: 'Ver propostas agora' },
@@ -21,8 +36,8 @@ const COOLDOWNS = {
     client_proposal_about_to_expire:  2,
     client_proposal_expiring:         5,
     client_order_completed_no_reorder: 14,
-    client_daily_inspire:             1,
-    provider_daily_grow:              1,
+    client_daily_inspire:             7,
+    provider_daily_grow:              7,
     provider_no_ad_3d:                7,
     provider_proposal_pending_5d:     5,
     provider_no_accepted_month:       10,
@@ -33,6 +48,20 @@ const COOLDOWNS = {
 class DynamicNotificationService {
     constructor() {
         this.push = new PushNotificationService();
+    }
+
+    async _isDailyCapReached(userId) {
+        const connection = await pool.getConnection();
+        try {
+            const [rows] = await connection.execute(
+                `SELECT COUNT(*) AS total FROM notification_sent_log
+                 WHERE user_id = ? AND sent_at >= CURDATE()`,
+                [userId]
+            );
+            return rows[0].total >= DAILY_CAP;
+        } finally {
+            connection.release();
+        }
     }
 
     async _wasRecentlySent(userId, triggerType) {
@@ -67,6 +96,9 @@ class DynamicNotificationService {
 
     async _send(user, triggerType, title, message, data = {}) {
         if (await this._wasRecentlySent(user.id, triggerType)) return false;
+
+        // Marketing triggers respeitam o cap diário; transacionais passam sempre
+        if (MARKETING_TRIGGERS.has(triggerType) && await this._isDailyCapReached(user.id)) return false;
 
         await Notification.create({
             user_id: user.id,
@@ -533,7 +565,8 @@ class DynamicNotificationService {
                  WHERE profile_type = 'client'
                    AND deleted_at IS NULL
                    AND activate = 1
-                   AND fcm_token IS NOT NULL AND fcm_token != ''`
+                   AND fcm_token IS NOT NULL AND fcm_token != ''
+                   AND (last_active IS NULL OR last_active <= DATE_SUB(NOW(), INTERVAL 3 DAY))`
             );
 
             const messages = [
@@ -569,7 +602,8 @@ class DynamicNotificationService {
                  WHERE profile_type = 'provider'
                    AND deleted_at IS NULL
                    AND activate = 1
-                   AND fcm_token IS NOT NULL AND fcm_token != ''`
+                   AND fcm_token IS NOT NULL AND fcm_token != ''
+                   AND (last_active IS NULL OR last_active <= DATE_SUB(NOW(), INTERVAL 3 DAY))`
             );
 
             const messages = [

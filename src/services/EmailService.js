@@ -650,6 +650,57 @@ class EmailService {
     }
 
 
+    async sendGenericNotification(recipient, subject, title, body, ctaText = 'Acessar Cotaja', ctaUrl = 'https://cotaja.io') {
+        const html = this.getGenericNotificationTemplate(recipient?.name, title, body, ctaText, ctaUrl);
+        await this.transporter.sendMail({
+            from: `"${process.env.MAIL_FROM_NAME || 'Cotaja'}" <${process.env.MAIL_FROM_ADDRESS || process.env.MAIL_USERNAME || process.env.MAIL_USER}>`,
+            to: recipient.email,
+            subject,
+            html,
+            attachments: [{ filename: 'logo.png', path: path.join(__dirname, '../../assets/images/logo.png'), cid: 'cotaja-logo' }]
+        });
+        console.log(`📧 [GenericNotif] "${subject}" → ${recipient.email}`);
+        return { success: true };
+    }
+
+    getGenericNotificationTemplate(recipientName, title, body, ctaText, ctaUrl) {
+        const name = recipientName || 'Olá';
+        return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,sans-serif;">
+<table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f4f4f4;padding:20px 0;">
+  <tr><td align="center">
+    <table cellpadding="0" cellspacing="0" border="0" width="600" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+      <tr><td style="background-color:#ffffff;padding:36px 40px 26px 40px;text-align:center;border-bottom:3px solid #4f46e5;">
+        <img src="cid:cotaja-logo" alt="Cotaja" style="max-width:220px;height:auto;display:block;margin:0 auto;" />
+      </td></tr>
+      <tr><td style="padding:36px 40px 10px 40px;">
+        <h2 style="margin:0 0 16px 0;color:#4f46e5;font-size:22px;text-align:center;">${title}</h2>
+        <p style="margin:0 0 12px 0;color:#4b5563;font-size:15px;line-height:1.6;">Olá, <strong>${name}</strong>!</p>
+        <p style="margin:0 0 24px 0;color:#4b5563;font-size:15px;line-height:1.6;">${body}</p>
+        <table cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td align="center" style="padding:8px 0 28px;">
+          <a href="${ctaUrl}" style="display:inline-block;padding:13px 38px;background-color:#4f46e5;color:#ffffff;text-decoration:none;border-radius:6px;font-size:15px;font-weight:bold;">${ctaText}</a>
+        </td></tr></table>
+      </td></tr>
+      <tr><td style="padding:0 40px 28px 40px;">
+        <p style="margin:0;color:#4b5563;font-size:15px;">Atenciosamente,</p>
+        <p style="margin:4px 0 0;color:#4f46e5;font-size:15px;font-weight:bold;">Equipe Cotaja</p>
+      </td></tr>
+      <tr><td style="background-color:#1f2937;padding:26px 40px;text-align:center;">
+        <p style="margin:0 0 6px 0;color:#ffffff;font-size:13px;font-weight:bold;">COTAJA</p>
+        <p style="margin:0 0 14px 0;color:#9ca3af;font-size:12px;">contato@cotaja.io · www.cotaja.io</p>
+        <table cellpadding="0" cellspacing="0" border="0" align="center"><tr>
+          <td style="padding:0 4px;"><a href="https://www.instagram.com/cotaja.io" style="display:block;text-decoration:none;"><table width="34" height="34" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#E1306C" style="border-radius:7px;width:34px;height:34px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="20" height="20" rx="5" stroke="white" stroke-width="2"/><circle cx="12" cy="12" r="4" stroke="white" stroke-width="2"/><circle cx="17.5" cy="6.5" r="1.5" fill="white"/></svg></td></tr></table></a></td>
+          <td style="padding:0 4px;"><a href="https://www.facebook.com/share/1ArvGRTDmo/" style="display:block;text-decoration:none;"><table width="34" height="34" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#1877F2" style="border-radius:7px;width:34px;height:34px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr></table></a></td>
+          <td style="padding:0 4px;"><a href="https://youtube.com/@cotajaseumarketplacedeservicos" style="display:block;text-decoration:none;"><table width="34" height="34" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" bgcolor="#FF0000" style="border-radius:7px;width:34px;height:34px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46a2.78 2.78 0 0 0-1.95 1.96C1 8.12 1 12 1 12s0 3.88.46 5.58a2.78 2.78 0 0 0 1.95 1.95C5.12 20 12 20 12 20s6.88 0 8.59-.47a2.78 2.78 0 0 0 1.95-1.95C23 15.88 23 12 23 12s0-3.88-.46-5.58z" stroke="white" stroke-width="2"/><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02" fill="white"/></svg></td></tr></table></a></td>
+        </tr></table>
+        <p style="margin:16px 0 0;color:#6b7280;font-size:11px;">Este é um email automático, por favor não responda.</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body></html>`.trim();
+    }
+
     getOrderDeletedTemplate(order, provider) {
         const budgetFormatted = order.budget ? `R$ ${Number.parseFloat(order.budget).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Não informado';
 

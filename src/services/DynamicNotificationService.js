@@ -1,6 +1,15 @@
 const { pool } = require('../config/database');
 const PushNotificationService = require('./PushNotificationService');
 const Notification = require('../models/Notification');
+const emailService = require('./EmailService');
+
+const EMAIL_TRIGGERS = {
+    client_welcome_first_order:        { subject: 'Bem-vindo à Cotaja! Crie seu primeiro pedido', cta: 'Criar meu primeiro pedido' },
+    client_proposal_about_to_expire:   { subject: 'Suas propostas vencem em breve!', cta: 'Ver propostas agora' },
+    client_pending_rating:             { subject: 'Avalie o profissional do seu serviço ⭐', cta: 'Avaliar profissional' },
+    client_order_completed_no_reorder: { subject: 'Precisa de um profissional novamente?', cta: 'Criar novo pedido' },
+    provider_profile_incomplete:       { subject: 'Complete seu perfil e atraia mais clientes', cta: 'Completar perfil' },
+};
 
 const COOLDOWNS = {
     client_open_order_48h:            2,
@@ -76,6 +85,17 @@ class DynamicNotificationService {
                 sound: 'default',
                 extra_data: { type: triggerType, ...data },
             }).catch(err => console.error(`[DynNotif] Erro push (${triggerType}) user ${user.id}:`, err.message));
+        }
+
+        const emailConfig = EMAIL_TRIGGERS[triggerType];
+        if (emailConfig && user.email) {
+            await emailService.sendGenericNotification(
+                user,
+                emailConfig.subject,
+                title,
+                message,
+                emailConfig.cta,
+            ).catch(err => console.error(`[DynNotif] Erro email (${triggerType}) user ${user.id}:`, err.message));
         }
 
         await this._logSent(user.id, triggerType);
@@ -216,7 +236,7 @@ class DynamicNotificationService {
         const connection = await pool.getConnection();
         try {
             const [rows] = await connection.execute(
-                `SELECT DISTINCT u.id, u.email, u.fcm_token, u.device_platform,
+                `SELECT DISTINCT u.id, u.name, u.email, u.fcm_token, u.device_platform,
                         o.id AS order_id, o.title
                  FROM orders o
                  JOIN users u ON u.id = o.client_id
@@ -339,7 +359,7 @@ class DynamicNotificationService {
         const connection = await pool.getConnection();
         try {
             const [rows] = await connection.execute(
-                `SELECT id, email, fcm_token, device_platform
+                `SELECT id, name, email, fcm_token, device_platform
                  FROM users
                  WHERE profile_type = 'client'
                    AND deleted_at IS NULL
@@ -370,7 +390,7 @@ class DynamicNotificationService {
         try {
             // Proposals are considered to expire after 7 days; notify when 24h remain (created 6+ days ago)
             const [rows] = await connection.execute(
-                `SELECT DISTINCT u.id, u.email, u.fcm_token, u.device_platform,
+                `SELECT DISTINCT u.id, u.name, u.email, u.fcm_token, u.device_platform,
                         o.id AS order_id, o.title,
                         COUNT(p.id) AS proposal_count
                  FROM proposals p
@@ -433,7 +453,7 @@ class DynamicNotificationService {
         const connection = await pool.getConnection();
         try {
             const [rows] = await connection.execute(
-                `SELECT u.id, u.email, u.fcm_token, u.device_platform,
+                `SELECT u.id, u.name, u.email, u.fcm_token, u.device_platform,
                         MAX(o.updated_at) AS last_completed_at
                  FROM users u
                  JOIN orders o ON o.client_id = u.id AND o.status = 'completed'
@@ -468,7 +488,7 @@ class DynamicNotificationService {
         const connection = await pool.getConnection();
         try {
             const [rows] = await connection.execute(
-                `SELECT u.id, u.email, u.fcm_token, u.device_platform,
+                `SELECT u.id, u.name, u.email, u.fcm_token, u.device_platform,
                         (u.avatar_base64 IS NULL OR u.avatar_base64 = '') AS missing_avatar,
                         (SELECT COUNT(*) FROM services s WHERE s.provider_id = u.id AND s.status = 'active') AS service_count
                  FROM users u

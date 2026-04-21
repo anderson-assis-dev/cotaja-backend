@@ -12,6 +12,8 @@ const COOLDOWNS = {
     client_proposal_about_to_expire:  2,
     client_proposal_expiring:         5,
     client_order_completed_no_reorder: 14,
+    client_daily_inspire:             1,
+    provider_daily_grow:              1,
     provider_no_ad_3d:                7,
     provider_proposal_pending_5d:     5,
     provider_no_accepted_month:       10,
@@ -163,7 +165,7 @@ class DynamicNotificationService {
             const messages = [
                 'Precisa de um serviço? Crie um pedido em menos de 2 minutos. ⚡',
                 'Sua casa merece atenção! Encontre o profissional certo agora.',
-                'Centenas de prestadores aguardam sua demanda na Cotaja. 🛠️',
+                'Centenas de prestadores aguardam sua demanda no CotaJá. 🛠️',
             ];
             let sent = 0;
             for (const row of rows) {
@@ -502,6 +504,78 @@ class DynamicNotificationService {
         }
     }
 
+    async checkClientDailyInspire() {
+        const connection = await pool.getConnection();
+        try {
+            const [rows] = await connection.execute(
+                `SELECT id, email, fcm_token, device_platform
+                 FROM users
+                 WHERE profile_type = 'client'
+                   AND deleted_at IS NULL
+                   AND activate = 1
+                   AND fcm_token IS NOT NULL AND fcm_token != ''`
+            );
+
+            const messages = [
+                { title: 'Precisa de uma mão hoje? 🤝', body: 'No CotaJá você encontra profissionais verificados perto de você. Crie um pedido em menos de 2 minutos!' },
+                { title: 'Seu lar merece cuidado! 🏠', body: 'De elétrica a limpeza, a Cotaja conecta você aos melhores profissionais da sua região.' },
+                { title: 'Economize tempo e dinheiro 💰', body: 'Receba propostas de vários profissionais e escolha a melhor oferta. Só no CotaJá!' },
+                { title: 'Um profissional perto de você 📍', body: 'Centenas de prestadores qualificados aguardam seu pedido. Qual serviço você precisa hoje?' },
+                { title: 'Serviço feito do jeito certo ✅', body: 'No CotaJá você contrata com segurança, avalia o profissional e garante a qualidade do serviço.' },
+                { title: 'Não deixe para depois! ⚡', body: 'Aquele serviço que você está adiando pode ser resolvido hoje. Abra um pedido agora!' },
+                { title: 'Profissionais prontos para te atender 🛠️', body: 'Peça orçamentos gratuitos e sem compromisso para qualquer serviço. Experimente agora!' },
+            ];
+
+            const dayIndex = new Date().getDay();
+            const { title, body } = messages[dayIndex % messages.length];
+
+            let sent = 0;
+            for (const row of rows) {
+                const ok = await this._send(row, 'client_daily_inspire', title, body, { screen: 'new_order' });
+                if (ok) sent++;
+            }
+            console.log(`[DynNotif] client_daily_inspire: ${sent}/${rows.length} enviados`);
+        } finally {
+            connection.release();
+        }
+    }
+
+    async checkProviderDailyGrow() {
+        const connection = await pool.getConnection();
+        try {
+            const [rows] = await connection.execute(
+                `SELECT id, email, fcm_token, device_platform
+                 FROM users
+                 WHERE profile_type = 'provider'
+                   AND deleted_at IS NULL
+                   AND activate = 1
+                   AND fcm_token IS NOT NULL AND fcm_token != ''`
+            );
+
+            const messages = [
+                { title: 'Aumente seu faturamento hoje! 🚀', body: 'Clientes estão buscando profissionais como você agora. Veja os pedidos disponíveis no CotaJá!' },
+                { title: 'Novos pedidos te aguardam 📋', body: 'Quanto mais propostas você enviar, mais chances de fechar novos contratos. Acesse agora!' },
+                { title: 'Seu próximo cliente está no CotaJá 🔍', body: 'Profissionais ativos na plataforma faturam até 3x mais. Não perca as oportunidades de hoje!' },
+                { title: 'Destaque-se da concorrência 🏆', body: 'Complete seu perfil, peça avaliações e anuncie para aparecer primeiro nos resultados.' },
+                { title: 'Sua agenda pode estar mais cheia 📅', body: 'Envie propostas competitivas hoje e garanta mais serviços para a semana. Veja os pedidos!' },
+                { title: 'Construa sua reputação no CotaJá ⭐', body: 'Cada serviço bem feito é uma avaliação positiva. Mais avaliações = mais clientes = mais renda.' },
+                { title: 'O fim de semana pode ser lucrativo 💵', body: 'Muitos clientes buscam serviços nos fins de semana. Fique ativo e aproveite a demanda!' },
+            ];
+
+            const dayIndex = new Date().getDay();
+            const { title, body } = messages[dayIndex % messages.length];
+
+            let sent = 0;
+            for (const row of rows) {
+                const ok = await this._send(row, 'provider_daily_grow', title, body, { screen: 'orders' });
+                if (ok) sent++;
+            }
+            console.log(`[DynNotif] provider_daily_grow: ${sent}/${rows.length} enviados`);
+        } finally {
+            connection.release();
+        }
+    }
+
     async checkProviderUnusedAdCredits() {
         const connection = await pool.getConnection();
         try {
@@ -551,6 +625,8 @@ class DynamicNotificationService {
             this.checkClientProposalAboutToExpire(),
             this.checkClientProposalExpiring(),
             this.checkClientOrderCompletedNoReorder(),
+            this.checkClientDailyInspire(),
+            this.checkProviderDailyGrow(),
             this.checkProviderNoAdAfterRegistration(),
             this.checkProviderProposalPending(),
             this.checkProviderNoAcceptedProposalThisMonth(),

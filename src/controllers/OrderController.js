@@ -539,6 +539,7 @@ class OrderController {
                 longitude: useGeoFilter ? providerLng : null,
                 radiusKm: parseInt(process.env.PROVIDER_RADIUS_KM) || 500,
                 withRelations: true,
+                isPremium: user.is_premium === 1,
             };
 
             const orders = await Order.findOpen(findParams);

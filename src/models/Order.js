@@ -239,6 +239,10 @@ class Order {
             let query = 'SELECT * FROM orders WHERE status = ?';
             const params = [Order.STATUS_OPEN];
 
+            if (!options.isPremium) {
+                query += ' AND created_at <= DATE_SUB(NOW(), INTERVAL 30 MINUTE)';
+            }
+
             if (options.categories && Array.isArray(options.categories) && options.categories.length > 0) {
                 const placeholders = options.categories.map(() => '?').join(', ');
                 query += ` AND category IN (${placeholders})`;

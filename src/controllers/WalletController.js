@@ -24,8 +24,9 @@ module.exports = {
   },
 
   async getWallet(req, res) {
+    let user;
     try {
-      const user = await User.findById(req.user.id);
+      user = await User.findById(req.user.id);
       if (!user || !user.stripe_customer_id) {
         return res.status(404).json({ success: false, message: 'Carteira não encontrada.' });
       }
@@ -49,7 +50,16 @@ module.exports = {
         },
       });
     } catch (error) {
-      console.error('WalletController.getWallet error:', error.message);
+      const isInvalidCustomer =
+        error.code === 'resource_missing' ||
+        error.type === 'StripeInvalidRequestError' ||
+        error.message?.includes('No such customer');
+
+      if (isInvalidCustomer) {
+        if (user) await user.update({ stripe_customer_id: null }).catch(() => {});
+        return res.status(404).json({ success: false, message: 'Carteira não encontrada. Crie uma nova.' });
+      }
+      console.error('WalletController.getWallet error:', error.message, error.code, error.type);
       return res.status(500).json({ success: false, message: 'Erro ao buscar carteira.' });
     }
   },

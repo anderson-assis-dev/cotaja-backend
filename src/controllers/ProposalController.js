@@ -30,7 +30,9 @@ class ProposalController {
                 const connection = await pool.getConnection();
                 try {
                     let query = `
-                        SELECT p.*, o.client_id, u.name as provider_name, u.email as provider_email
+                        SELECT p.*, o.client_id,
+                               u.name as provider_name, u.email as provider_email,
+                               u.is_premium as provider_is_premium, u.is_verified as provider_is_verified
                         FROM proposals p
                         LEFT JOIN orders o ON p.order_id = o.id
                         LEFT JOIN users u ON p.provider_id = u.id
@@ -48,7 +50,8 @@ class ProposalController {
                         params.push(order_id);
                     }
 
-                    query += ' ORDER BY p.created_at DESC';
+                    // Premium providers appear first, then by creation date
+                    query += ' ORDER BY u.is_premium DESC, p.created_at ASC';
 
                     const [rows] = await connection.execute(query, params);
                     proposals = rows.map(row => new Proposal(row));
@@ -111,6 +114,27 @@ class ProposalController {
                     success: false,
                     message: 'Este pedido não está mais aceitando propostas'
                 });
+            }
+
+            // Monthly proposal limit for free providers
+            if (!user.is_premium) {
+                const connection = await pool.getConnection();
+                try {
+                    const [[{ total }]] = await connection.execute(
+                        `SELECT COUNT(*) AS total FROM proposals
+                         WHERE provider_id = ? AND created_at >= DATE_FORMAT(NOW(), '%Y-%m-01')`,
+                        [user.id]
+                    );
+                    if (total >= 10) {
+                        return res.status(403).json({
+                            success: false,
+                            message: 'Você atingiu o limite de 10 propostas por mês. Assine o Premium para propostas ilimitadas.',
+                            upgrade_required: true,
+                        });
+                    }
+                } finally {
+                    connection.release();
+                }
             }
 
             const existingProposals = await Proposal.findByOrder(order_id, {
@@ -262,19 +286,71 @@ class ProposalController {
                 const totalProposals = Number(stats.total_proposals) || 0;
                 const totalAccepted = Number(stats.total_accepted) || 0;
 
+                const baseData = {
+                    total_views: Number(stats.total_views) || 0,
+                    views_this_week: Number(weekRows[0].views_this_week) || 0,
+                    proposals_with_views: Number(stats.proposals_with_views) || 0,
+                    total_proposals: totalProposals,
+                    total_pending: Number(stats.total_pending) || 0,
+                    total_accepted: totalAccepted,
+                    conversion_rate: totalProposals > 0
+                        ? Math.round((totalAccepted / totalProposals) * 100)
+                        : 0,
+                    available_orders: Number(searchRows[0].available_orders) || 0,
+                    is_premium: user.is_premium === 1,
+                };
+
+                if (user.is_premium !== 1) {
+                    return res.json({ success: true, data: baseData });
+                }
+
+                // Premium-only metrics
+                const [[monthRow], [avgResponseRow], [rankRow]] = await Promise.all([
+                    // Proposals this month
+                    connection.execute(
+                        `SELECT COUNT(*) AS proposals_this_month
+                         FROM proposals
+                         WHERE provider_id = ? AND created_at >= DATE_FORMAT(NOW(), '%Y-%m-01')`,
+                        [user.id]
+                    ),
+                    // Average position among competing proposals (lower = better)
+                    connection.execute(
+                        `SELECT AVG(rank_pos) AS avg_rank
+                         FROM (
+                           SELECT p.id,
+                             (SELECT COUNT(*) + 1 FROM proposals p2
+                              WHERE p2.order_id = p.order_id AND p2.created_at < p.created_at) AS rank_pos
+                           FROM proposals p
+                           WHERE p.provider_id = ? AND p.status = 'pending'
+                         ) ranked`,
+                        [user.id]
+                    ),
+                    // View trend: views last 30 days vs previous 30 days
+                    connection.execute(
+                        `SELECT
+                           SUM(CASE WHEN updated_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN view_count ELSE 0 END) AS views_last_30d,
+                           SUM(CASE WHEN updated_at BETWEEN DATE_SUB(NOW(), INTERVAL 60 DAY) AND DATE_SUB(NOW(), INTERVAL 30 DAY) THEN view_count ELSE 0 END) AS views_prev_30d
+                         FROM proposals WHERE provider_id = ?`,
+                        [user.id]
+                    ),
+                ]);
+
+                const viewsLast30d = Number(rankRow[0]?.views_last_30d) || 0;
+                const viewsPrev30d = Number(rankRow[0]?.views_prev_30d) || 0;
+                const viewTrend = viewsPrev30d > 0
+                    ? Math.round(((viewsLast30d - viewsPrev30d) / viewsPrev30d) * 100)
+                    : null;
+
                 return res.json({
                     success: true,
                     data: {
-                        total_views: Number(stats.total_views) || 0,
-                        views_this_week: Number(weekRows[0].views_this_week) || 0,
-                        proposals_with_views: Number(stats.proposals_with_views) || 0,
-                        total_proposals: totalProposals,
-                        total_pending: Number(stats.total_pending) || 0,
-                        total_accepted: totalAccepted,
-                        conversion_rate: totalProposals > 0
-                            ? Math.round((totalAccepted / totalProposals) * 100)
-                            : 0,
-                        available_orders: Number(searchRows[0].available_orders) || 0,
+                        ...baseData,
+                        proposals_this_month: Number(monthRow[0]?.proposals_this_month) || 0,
+                        avg_rank_position: avgResponseRow[0]?.avg_rank
+                            ? Math.round(Number(avgResponseRow[0].avg_rank))
+                            : null,
+                        views_last_30d: viewsLast30d,
+                        view_trend_pct: viewTrend,
                     }
                 });
             } finally {

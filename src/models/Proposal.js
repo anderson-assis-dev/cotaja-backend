@@ -13,6 +13,10 @@ class Proposal {
         this.provider_id = data.provider_id || null;
         this.created_at = data.created_at || null;
         this.updated_at = data.updated_at || null;
+        if (data.provider_name !== undefined)       this.provider_name = data.provider_name;
+        if (data.provider_email !== undefined)      this.provider_email = data.provider_email;
+        if (data.provider_is_premium !== undefined) this.provider_is_premium = !!data.provider_is_premium;
+        if (data.provider_is_verified !== undefined) this.provider_is_verified = !!data.provider_is_verified;
     }
 
     static get STATUS_PENDING() { return 'pending'; }
@@ -264,7 +268,7 @@ class Proposal {
 
             if (this.provider_id) {
                 const [providerRows] = await connection.execute(
-                    'SELECT id, name, email, phone, profile_type, avatar_base64 FROM users WHERE id = ?',
+                    'SELECT id, name, email, phone, profile_type, avatar_base64, is_premium, is_verified FROM users WHERE id = ?',
                     [this.provider_id]
                 );
                 this.provider = providerRows[0] || null;

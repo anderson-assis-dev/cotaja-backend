@@ -54,4 +54,46 @@ async function createPaymentIntent({ amount, currency = 'brl', customerId, payme
   });
 }
 
-module.exports = { stripe, createCustomer, findOrCreateCustomer, getCustomer, listPaymentMethods, createSetupIntent, detachPaymentMethod, createPaymentIntent };
+async function createSubscription(customerId, paymentMethodId, priceId) {
+  // Attach payment method as default for the subscription
+  await stripe.paymentMethods.attach(paymentMethodId, { customer: customerId });
+  await stripe.customers.update(customerId, {
+    invoice_settings: { default_payment_method: paymentMethodId },
+  });
+
+  return stripe.subscriptions.create({
+    customer: customerId,
+    items: [{ price: priceId }],
+    default_payment_method: paymentMethodId,
+    expand: ['latest_invoice.payment_intent'],
+    metadata: { source: 'cotaja_premium' },
+  });
+}
+
+async function cancelSubscription(subscriptionId) {
+  // Cancel at period end so user keeps access until billing cycle ends
+  return stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: true });
+}
+
+async function reactivateSubscription(subscriptionId) {
+  return stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: false });
+}
+
+async function getSubscription(subscriptionId) {
+  return stripe.subscriptions.retrieve(subscriptionId);
+}
+
+module.exports = {
+  stripe,
+  createCustomer,
+  findOrCreateCustomer,
+  getCustomer,
+  listPaymentMethods,
+  createSetupIntent,
+  detachPaymentMethod,
+  createPaymentIntent,
+  createSubscription,
+  cancelSubscription,
+  reactivateSubscription,
+  getSubscription,
+};

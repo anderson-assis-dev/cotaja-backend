@@ -11,6 +11,9 @@ const routes = require('./routes');
 
 const app = express();
 
+const { webhook } = require('./controllers/SubscriptionController');
+app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), webhook);
+
 app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
     contentSecurityPolicy: false,

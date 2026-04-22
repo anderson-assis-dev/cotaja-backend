@@ -13,6 +13,11 @@ class User {
         this.mother_name = data.mother_name || null;
         this.birth_date = data.birth_date || null;
         this.stripe_customer_id = data.stripe_customer_id || null;
+        this.is_premium = data.is_premium !== undefined ? data.is_premium : 0;
+        this.is_verified = data.is_verified !== undefined ? data.is_verified : 0;
+        this.premium_since = data.premium_since || null;
+        this.premium_until = data.premium_until || null;
+        this.stripe_subscription_id = data.stripe_subscription_id || null;
         this.address = data.address || null;
         this.latitude = data.latitude || null;
         this.longitude = data.longitude || null;

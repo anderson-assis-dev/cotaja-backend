@@ -11,6 +11,7 @@ const geocodingRoutes = require('./geocoding');
 const chatRoutes = require('./chat');
 const walletRoutes = require('./wallet');
 const adRoutes = require('./ads');
+const subscriptionRoutes = require('./subscriptions');
 
 router.use('/auth', authRoutes);
 router.use('/orders', orderRoutes);
@@ -22,6 +23,7 @@ router.use('/geocoding', geocodingRoutes);
 router.use('/chat', chatRoutes);
 router.use('/wallet', walletRoutes);
 router.use('/ads', adRoutes);
+router.use('/subscriptions', subscriptionRoutes);
 
 router.get('/health', (req, res) => {
     res.json({

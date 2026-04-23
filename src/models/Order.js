@@ -254,12 +254,12 @@ class Order {
 
             if (options.cep) {
                 const cep = options.cep.replace(/[^0-9]/g, '');
-                if (cep.length >= 5) {
-                    const cepNum = parseInt(cep.padEnd(8, '0'), 10);
-                    const range = 3000000;
-                    query += ' AND zip_code IS NOT NULL AND zip_code != \'\''
-                        + ' AND CAST(REPLACE(zip_code, \'-\', \'\') AS UNSIGNED) BETWEEN ? AND ?';
-                    params.push(cepNum - range, cepNum + range);
+                if (cep.length === 8) {
+                    query += ' AND REPLACE(zip_code, \'-\', \'\') = ?';
+                    params.push(cep);
+                } else if (cep.length >= 5) {
+                    query += ' AND REPLACE(zip_code, \'-\', \'\') LIKE ?';
+                    params.push(cep + '%');
                 }
             }
 

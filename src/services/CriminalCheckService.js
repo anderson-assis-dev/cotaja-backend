@@ -63,7 +63,7 @@ class CriminalCheckService {
       } catch {}
 
       const connectOpts = {
-        headless: true,
+        headless: false,
         turnstile: true,
         disableXvfb: false,
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--window-size=1920,1080'],

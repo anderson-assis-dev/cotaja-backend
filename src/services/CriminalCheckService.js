@@ -17,8 +17,17 @@ const SELECTORS = {
   btnEmitir: '#btn-emitir-cac',
 };
 
+const CRIMINAL_CHECK_TIMEOUT_MS = 3 * 60 * 1000;
+
 class CriminalCheckService {
-  static async checkProvider(userId) {
+  static checkProvider(userId) {
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('CriminalCheck timeout após 3 minutos')), CRIMINAL_CHECK_TIMEOUT_MS)
+    );
+    return Promise.race([CriminalCheckService._doCheck(userId), timeout]);
+  }
+
+  static async _doCheck(userId) {
     const user = await User.findById(userId);
     if (!user) throw new Error('Usuário não encontrado');
     if (!user.isProvider()) throw new Error('Verificação disponível apenas para prestadores');

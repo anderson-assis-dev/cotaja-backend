@@ -7,6 +7,7 @@ const moment = require('moment');
 class ScheduleReminderService {
     constructor() {
         this.intervalId = null;
+        this.isRunning = false;
     }
 
     start() {
@@ -23,6 +24,11 @@ class ScheduleReminderService {
     }
 
     async checkReminders() {
+        if (this.isRunning) {
+            console.log('[ScheduleReminder] Já está rodando, pulando ciclo.');
+            return;
+        }
+        this.isRunning = true;
         const connection = await pool.getConnection();
         try {
             const now = moment();
@@ -67,6 +73,7 @@ class ScheduleReminderService {
             console.error('Erro ao verificar lembretes:', error);
         } finally {
             connection.release();
+            this.isRunning = false;
         }
     }
 

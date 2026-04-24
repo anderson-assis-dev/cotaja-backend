@@ -298,9 +298,7 @@ class PushNotificationService {
             const protocol = urlObj.protocol === 'https:' ? https : require('http');
             const req = protocol.request(requestOptions, (res) => {
                 let data = '';
-                res.on('data', (chunk) => {
-                    data += chunk;
-                });
+                res.on('data', (chunk) => { data += chunk; });
                 res.on('end', () => {
                     if (res.statusCode >= 200 && res.statusCode < 300) {
                         resolve(data);
@@ -310,14 +308,13 @@ class PushNotificationService {
                 });
             });
 
-            req.on('error', (error) => {
-                reject(error);
+            req.setTimeout(15000, () => {
+                req.destroy(new Error('Push HTTP request timed out (15s)'));
             });
 
-            if (options.body) {
-                req.write(options.body);
-            }
+            req.on('error', reject);
 
+            if (options.body) req.write(options.body);
             req.end();
         });
     }
@@ -327,9 +324,7 @@ class PushNotificationService {
         return new Promise((resolve, reject) => {
             const req = https.request(options, (res) => {
                 let data = '';
-                res.on('data', (chunk) => {
-                    data += chunk;
-                });
+                res.on('data', (chunk) => { data += chunk; });
                 res.on('end', () => {
                     if (res.statusCode === 200) {
                         resolve(data || 'Success');
@@ -339,14 +334,13 @@ class PushNotificationService {
                 });
             });
 
-            req.on('error', (error) => {
-                reject(error);
+            req.setTimeout(15000, () => {
+                req.destroy(new Error('APNs request timed out (15s)'));
             });
 
-            if (payload) {
-                req.write(payload);
-            }
+            req.on('error', reject);
 
+            if (payload) req.write(payload);
             req.end();
         });
     }

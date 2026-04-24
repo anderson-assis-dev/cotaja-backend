@@ -6,6 +6,14 @@ const reEngagementCron = require('./services/ReEngagementCron');
 
 const PORT = process.env.APP_PORT || 3000;
 
+process.on('uncaughtException', (err) => {
+    console.error('❌ [FATAL] uncaughtException — servidor continuando:', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+    console.error('❌ [FATAL] unhandledRejection — servidor continuando:', reason);
+});
+
 const adDispatcher = new AdDispatchService();
 
 app.listen(PORT, () => {

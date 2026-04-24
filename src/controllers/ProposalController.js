@@ -1,6 +1,7 @@
 const Proposal = require('../models/Proposal');
 const Order = require('../models/Order');
 const User = require('../models/User');
+const ProfileView = require('../models/ProfileView');
 const notificationService = require('../services/NotificationService');
 const emailService = require('../services/EmailService');
 const { pool } = require('../config/database');
@@ -274,17 +275,12 @@ class ProposalController {
                     [user.id]
                 );
 
-                // Cotações em aberto compatíveis com o provider (aproximação de "apareceu em buscas")
-                const [searchRows] = await connection.execute(
-                    `SELECT COUNT(*) AS available_orders
-                     FROM orders
-                     WHERE status = 'open'`,
-                    []
-                );
-
                 const stats = viewRows[0];
                 const totalProposals = Number(stats.total_proposals) || 0;
                 const totalAccepted = Number(stats.total_accepted) || 0;
+
+                const isPremium = user.is_premium === 1;
+                const profileStats = await ProfileView.getStats(user.id, isPremium);
 
                 const baseData = {
                     total_views: Number(stats.total_views) || 0,
@@ -296,16 +292,57 @@ class ProposalController {
                     conversion_rate: totalProposals > 0
                         ? Math.round((totalAccepted / totalProposals) * 100)
                         : 0,
-                    available_orders: Number(searchRows[0].available_orders) || 0,
-                    is_premium: user.is_premium === 1,
+                    is_premium: isPremium,
+                    profile_views_today: profileStats.profile_views_today,
+                    no_quote_today: profileStats.no_quote_today,
+                    profile_viewers: profileStats.viewers,
                 };
 
-                if (user.is_premium !== 1) {
-                    return res.json({ success: true, data: baseData });
+                // Analytics for all users: category breakdown + avg response time
+                const [[categoryRows], [responseRow]] = await Promise.all([
+                    connection.execute(
+                        `SELECT
+                           o.category,
+                           COUNT(*) AS total,
+                           SUM(CASE WHEN p.status = 'accepted' THEN 1 ELSE 0 END) AS accepted,
+                           ROUND(SUM(CASE WHEN p.status = 'accepted' THEN 1 ELSE 0 END) / COUNT(*) * 100) AS rate
+                         FROM proposals p
+                         JOIN orders o ON o.id = p.order_id
+                         WHERE p.provider_id = ?
+                         GROUP BY o.category
+                         ORDER BY rate DESC, total DESC
+                         LIMIT 6`,
+                        [user.id]
+                    ),
+                    connection.execute(
+                        `SELECT ROUND(AVG(TIMESTAMPDIFF(HOUR, o.created_at, p.created_at))) AS avg_response_hours
+                         FROM proposals p
+                         JOIN orders o ON o.id = p.order_id
+                         WHERE p.provider_id = ?
+                           AND p.created_at <= DATE_ADD(o.created_at, INTERVAL 30 DAY)`,
+                        [user.id]
+                    ),
+                ]);
+
+                const category_breakdown = (Array.isArray(categoryRows) ? categoryRows : []).map(r => ({
+                    category: r.category,
+                    total: Number(r.total) || 0,
+                    accepted: Number(r.accepted) || 0,
+                    rate: Number(r.rate) || 0,
+                }));
+
+                const rawAvg = responseRow[0]?.avg_response_hours;
+                const avg_response_hours = rawAvg == null ? null : Number(rawAvg);
+
+                if (!isPremium) {
+                    return res.json({
+                        success: true,
+                        data: { ...baseData, category_breakdown, avg_response_hours },
+                    });
                 }
 
                 // Premium-only metrics
-                const [[monthRow], [avgResponseRow], [rankRow]] = await Promise.all([
+                const [[monthRow], [avgResponseRow], [rankRow], [historyRows]] = await Promise.all([
                     // Proposals this month
                     connection.execute(
                         `SELECT COUNT(*) AS proposals_this_month
@@ -333,6 +370,19 @@ class ProposalController {
                          FROM proposals WHERE provider_id = ?`,
                         [user.id]
                     ),
+                    // Monthly history — last 12 months
+                    connection.execute(
+                        `SELECT
+                           DATE_FORMAT(p.created_at, '%Y-%m') AS month,
+                           COUNT(*) AS total,
+                           SUM(CASE WHEN p.status = 'accepted' THEN 1 ELSE 0 END) AS accepted
+                         FROM proposals p
+                         WHERE p.provider_id = ?
+                         GROUP BY month
+                         ORDER BY month DESC
+                         LIMIT 12`,
+                        [user.id]
+                    ),
                 ]);
 
                 const viewsLast30d = Number(rankRow[0]?.views_last_30d) || 0;
@@ -341,16 +391,25 @@ class ProposalController {
                     ? Math.round(((viewsLast30d - viewsPrev30d) / viewsPrev30d) * 100)
                     : null;
 
+                const monthly_history = (Array.isArray(historyRows) ? historyRows : []).map(r => ({
+                    month: r.month,
+                    total: Number(r.total) || 0,
+                    accepted: Number(r.accepted) || 0,
+                }));
+
                 return res.json({
                     success: true,
                     data: {
                         ...baseData,
+                        category_breakdown,
+                        avg_response_hours,
                         proposals_this_month: Number(monthRow[0]?.proposals_this_month) || 0,
                         avg_rank_position: avgResponseRow[0]?.avg_rank
                             ? Math.round(Number(avgResponseRow[0].avg_rank))
                             : null,
                         views_last_30d: viewsLast30d,
                         view_trend_pct: viewTrend,
+                        monthly_history,
                     }
                 });
             } finally {

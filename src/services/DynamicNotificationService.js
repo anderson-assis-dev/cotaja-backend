@@ -19,11 +19,11 @@ const MARKETING_TRIGGERS = new Set([
 ]);
 
 const EMAIL_TRIGGERS = {
-    client_welcome_first_order:        { subject: 'Bem-vindo à Cotaja! Crie seu primeiro pedido', cta: 'Criar meu primeiro pedido' },
-    client_proposal_about_to_expire:   { subject: 'Suas propostas vencem em breve!', cta: 'Ver propostas agora' },
-    client_pending_rating:             { subject: 'Avalie o profissional do seu serviço ⭐', cta: 'Avaliar profissional' },
-    client_order_completed_no_reorder: { subject: 'Precisa de um profissional novamente?', cta: 'Criar novo pedido' },
-    provider_profile_incomplete:       { subject: 'Complete seu perfil e atraia mais clientes', cta: 'Completar perfil' },
+    client_welcome_first_order:        { subject: 'Bem-vindo à Cotaja! Crie seu primeiro pedido', cta: 'Criar meu primeiro pedido', screen: 'new-order' },
+    client_proposal_about_to_expire:   { subject: 'Suas propostas vencem em breve!', cta: 'Ver propostas agora', screen: 'order' },
+    client_pending_rating:             { subject: 'Avalie o profissional do seu serviço ⭐', cta: 'Avaliar profissional', screen: 'rate' },
+    client_order_completed_no_reorder: { subject: 'Precisa de um profissional novamente?', cta: 'Criar novo pedido', screen: 'new-order' },
+    provider_profile_incomplete:       { subject: 'Complete seu perfil e atraia mais clientes', cta: 'Completar perfil', screen: 'profile' },
 };
 
 const COOLDOWNS = {
@@ -121,12 +121,17 @@ class DynamicNotificationService {
 
         const emailConfig = EMAIL_TRIGGERS[triggerType];
         if (emailConfig && user.email) {
+            const baseUrl = process.env.APP_URL || 'https://api.cotaja.io';
+            let ctaUrl = `${baseUrl}/open?screen=${emailConfig.screen}`;
+            if (data.order_id) ctaUrl += `&id=${data.order_id}`;
+
             await emailService.sendGenericNotification(
                 user,
                 emailConfig.subject,
                 title,
                 message,
                 emailConfig.cta,
+                ctaUrl,
             ).catch(err => console.error(`[DynNotif] Erro email (${triggerType}) user ${user.id}:`, err.message));
         }
 

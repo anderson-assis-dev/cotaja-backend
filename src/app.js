@@ -55,6 +55,9 @@ app.use('/api', routes);
 
 app.use('/', routes);
 
+const { open: deepLinkOpen } = require('./controllers/DeepLinkController');
+app.get('/open', deepLinkOpen);
+
 app.get('/', (req, res) => {
     res.json({
         success: true,

@@ -67,6 +67,11 @@ class ProfileView {
       if (is_premium) {
         const [viewerRows] = await connection.execute(
           `SELECT pv.id, pv.viewer_id, pv.viewed_at, u.name, u.avatar_base64,
+             (SELECT o.id FROM orders o
+              WHERE o.client_id = pv.viewer_id
+                AND o.provider_id = ?
+                AND o.status IN ('in_progress', 'completed')
+              ORDER BY o.updated_at DESC LIMIT 1) AS order_id,
              CASE WHEN EXISTS (
                SELECT 1 FROM orders o
                WHERE o.client_id = pv.viewer_id
@@ -78,7 +83,7 @@ class ProfileView {
            WHERE pv.provider_id = ?
            ORDER BY pv.viewed_at DESC
            LIMIT 10`,
-          [provider_id, provider_id]
+          [provider_id, provider_id, provider_id]
         );
         viewers = viewerRows.map(r => ({
           id: r.id,
@@ -87,6 +92,7 @@ class ProfileView {
           avatar_base64: r.avatar_base64 || null,
           viewed_at: r.viewed_at,
           opened_quote: r.opened_quote === 1,
+          order_id: r.order_id ? Number(r.order_id) : null,
         }));
       }
 

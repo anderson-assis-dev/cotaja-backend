@@ -282,14 +282,24 @@ class User {
         try {
             await ProviderRating.ensureTable();
             let query = `
-                SELECT u.uuid, u.name, u.address, u.zip_code, u.service_categories,
-                       u.avatar_base64, COALESCE(pr.avg_rating,0) rate
+                SELECT u.id provider_id,u.uuid,u.name,u.address,u.zip_code,u.service_categories,
+                       u.avatar_base64,COALESCE(pr.avg_rating,0) rate,
+                       COALESCE(os.completed_services,0) completed_services,
+                       COALESCE(os.active_services,0) active_services
                 FROM users u
                 LEFT JOIN (
                     SELECT provider_id,AVG(rating) avg_rating
                     FROM provider_ratings
                     GROUP BY provider_id
                 ) pr ON pr.provider_id=u.id
+                LEFT JOIN (
+                    SELECT provider_id,
+                           SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) completed_services,
+                           SUM(CASE WHEN status IN ('open','in_progress') THEN 1 ELSE 0 END) active_services
+                    FROM orders
+                    WHERE provider_id IS NOT NULL
+                    GROUP BY provider_id
+                ) os ON os.provider_id=u.id
                 WHERE u.profile_type = 'provider'
                 AND u.activate = 1
             `;
@@ -318,6 +328,89 @@ class User {
         } finally {
             connection.release();
         }
+    }
+
+    static async getProviderPublicByUuid(uuid){
+        const connection=await pool.getConnection();
+        try{
+            await ProviderRating.ensureTable();
+            const [rows]=await connection.execute(`
+                SELECT u.id provider_id,u.uuid,u.name,u.address,u.zip_code,u.service_categories,u.avatar_base64,
+                       COALESCE(pr.avg_rating,0) rate,COALESCE(pr.ratings_count,0) ratings_count,
+                       COALESCE(os.completed_services,0) completed_services,COALESCE(os.active_services,0) active_services,
+                       COALESCE(ss.services_count,0) services_count
+                FROM users u
+                LEFT JOIN (
+                    SELECT provider_id,COUNT(*) ratings_count,AVG(rating) avg_rating
+                    FROM provider_ratings
+                    GROUP BY provider_id
+                ) pr ON pr.provider_id=u.id
+                LEFT JOIN (
+                    SELECT provider_id,
+                           SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) completed_services,
+                           SUM(CASE WHEN status IN ('open','in_progress') THEN 1 ELSE 0 END) active_services
+                    FROM orders
+                    WHERE provider_id IS NOT NULL
+                    GROUP BY provider_id
+                ) os ON os.provider_id=u.id
+                LEFT JOIN (
+                    SELECT provider_id,COUNT(*) services_count
+                    FROM services
+                    GROUP BY provider_id
+                ) ss ON ss.provider_id=u.id
+                WHERE u.uuid=? AND u.profile_type='provider' AND u.activate=1
+                LIMIT 1
+            `,[String(uuid)]);
+            if(!rows||rows.length===0)return null;
+            const row=rows[0];
+            if(row.service_categories){
+                try{row.service_categories=JSON.parse(row.service_categories);}catch{row.service_categories=[];}
+            }else row.service_categories=[];
+            const [services]=await connection.execute(
+                'SELECT id,title,description,price,category,status,created_at FROM services WHERE provider_id=? ORDER BY created_at DESC LIMIT 6',
+                [row.provider_id]
+            );
+            return {...row,services:Array.isArray(services)?services:[]};
+        }finally{connection.release();}
+    }
+
+    static async listProviderCategoriesPublic({limit=60}={}){
+        const connection=await pool.getConnection();
+        try{
+            const lim=Math.min(Math.max(Number(limit)||60,1),200);
+            const [rows]=await connection.execute(
+                "SELECT id,service_categories FROM users WHERE profile_type='provider' AND activate=1 AND service_categories IS NOT NULL"
+            );
+            const normalizeLabel=(raw)=>{
+                if(typeof raw!=='string')return null;
+                const label=raw.trim().replaceAll(/\s+/g,' ');
+                if(!label)return null;
+                return {label,key:label.toLowerCase()};
+            };
+            const parseCats=(value)=>{
+                if(Array.isArray(value))return value;
+                if(typeof value==='string'&&value){
+                    try{return JSON.parse(value);}catch{return [];}
+                }
+                return [];
+            };
+            const map=new Map();
+            for(const r of rows||[]){
+                const providerId=String(r.id);
+                const cats=parseCats(r.service_categories);
+                if(!Array.isArray(cats))continue;
+                for(const raw of cats){
+                    const n=normalizeLabel(raw);
+                    if(!n)continue;
+                    const prev=map.get(n.key);
+                    if(prev){prev.providers.add(providerId);continue;}
+                    map.set(n.key,{label:n.label,providers:new Set([providerId])});
+                }
+            }
+            const out=[...map.values()].map(v=>({label:v.label,providers_count:v.providers.size}));
+            out.sort((a,b)=>b.providers_count-a.providers_count||String(a.label).localeCompare(String(b.label)));
+            return out.slice(0,lim);
+        }finally{connection.release();}
     }
 
     async update(updateData) {

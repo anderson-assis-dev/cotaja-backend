@@ -30,6 +30,29 @@ router.get('/search', async (req, res) => {
   }
 });
 
+router.get('/categories',async(req,res)=>{
+  try{
+    const { limit }=req.query;
+    const data=await User.listProviderCategoriesPublic({limit});
+    return res.json({success:true,data});
+  }catch(error){
+    console.error('Erro ao buscar categorias:',error);
+    return res.status(500).json({success:false,message:'Erro interno do servidor'});
+  }
+});
+
+router.get('/:uuid/public',async(req,res)=>{
+  try{
+    const { uuid }=req.params;
+    const data=await User.getProviderPublicByUuid(uuid);
+    if(!data)return res.status(404).json({success:false,message:'Prestador não encontrado'});
+    return res.json({success:true,data});
+  }catch(error){
+    console.error('Erro ao buscar prestador:',error);
+    return res.status(500).json({success:false,message:'Erro interno do servidor'});
+  }
+});
+
 router.use(authenticateToken);
 
 router.get('/my-viewers', async (req, res) => {

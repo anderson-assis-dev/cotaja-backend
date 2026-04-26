@@ -1,6 +1,7 @@
 const { pool } = require('../config/database');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const ProviderRating=require('./ProviderRating');
 
 class User {
     constructor(data = {}) {
@@ -279,26 +280,32 @@ class User {
     static async searchProviders({ category = null, city = null, limit = 20 } = {}) {
         const connection = await pool.getConnection();
         try {
+            await ProviderRating.ensureTable();
             let query = `
-                SELECT uuid, name, address, zip_code, service_categories,
-                       avatar_base64, rate, completed_services, active_services
-                FROM users
-                WHERE profile_type = 'provider'
-                AND activate = 1
+                SELECT u.uuid, u.name, u.address, u.zip_code, u.service_categories,
+                       u.avatar_base64, COALESCE(pr.avg_rating,0) rate
+                FROM users u
+                LEFT JOIN (
+                    SELECT provider_id,AVG(rating) avg_rating
+                    FROM provider_ratings
+                    GROUP BY provider_id
+                ) pr ON pr.provider_id=u.id
+                WHERE u.profile_type = 'provider'
+                AND u.activate = 1
             `;
             const params = [];
 
             if (category) {
-                query += ' AND JSON_CONTAINS(LOWER(service_categories), ?)';
+                query += ' AND JSON_CONTAINS(LOWER(u.service_categories), ?)';
                 params.push(JSON.stringify(category.toLowerCase()));
             }
 
             if (city) {
-                query += ' AND LOWER(address) LIKE ?';
+                query += ' AND LOWER(u.address) LIKE ?';
                 params.push(`%${city.toLowerCase()}%`);
             }
 
-            query += ' ORDER BY rate DESC, completed_services DESC LIMIT ?';
+            query += ' ORDER BY rate DESC, u.name ASC LIMIT ?';
             params.push(limit);
 
             const [rows] = await connection.execute(query, params);

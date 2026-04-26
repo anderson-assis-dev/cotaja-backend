@@ -24,6 +24,9 @@ router.post('/fcm-token', authenticateToken, fcmTokenValidation, authController.
 router.put('/avatar', authenticateToken, authController.updateAvatar);
 router.post('/request-otp', authenticateToken, authController.requestOtp.bind(authController));
 router.post('/change-password', authenticateToken, authController.changePasswordWithOtp.bind(authController));
+router.get('/security-code', authenticateToken, authController.getSecurityCode.bind(authController));
+router.put('/security-code', authenticateToken, authController.updateSecurityCode.bind(authController));
+router.post('/verify-security-code', authenticateToken, authController.verifySecurityCode.bind(authController));
 router.delete('/account', authenticateToken, authController.deleteAccount.bind(authController));
 
 module.exports = router;

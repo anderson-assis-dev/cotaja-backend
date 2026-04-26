@@ -28,6 +28,7 @@ class User {
         this.criminal_check = data.criminal_check !== undefined ? data.criminal_check : 0;
         this.criminal_check_code = data.criminal_check_code || null;
         this.criminal_check_date = data.criminal_check_date || null;
+        this.security_code = data.security_code || null;
         this.fcm_token = data.fcm_token || null;
         this.device_platform = data.device_platform || null;
         this.password = data.password || null;

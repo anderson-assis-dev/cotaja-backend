@@ -276,6 +276,43 @@ class User {
         }
     }
 
+    static async searchProviders({ category = null, city = null, limit = 20 } = {}) {
+        const connection = await pool.getConnection();
+        try {
+            let query = `
+                SELECT uuid, name, address, zip_code, service_categories,
+                       avatar_base64, rate, completed_services, active_services
+                FROM users
+                WHERE profile_type = 'provider'
+                AND activate = 1
+            `;
+            const params = [];
+
+            if (category) {
+                query += ' AND JSON_CONTAINS(LOWER(service_categories), ?)';
+                params.push(JSON.stringify(category.toLowerCase()));
+            }
+
+            if (city) {
+                query += ' AND LOWER(address) LIKE ?';
+                params.push(`%${city.toLowerCase()}%`);
+            }
+
+            query += ' ORDER BY rate DESC, completed_services DESC LIMIT ?';
+            params.push(limit);
+
+            const [rows] = await connection.execute(query, params);
+            return rows.map(row => {
+                if (row.service_categories) {
+                    try { row.service_categories = JSON.parse(row.service_categories); } catch { row.service_categories = []; }
+                }
+                return row;
+            });
+        } finally {
+            connection.release();
+        }
+    }
+
     async update(updateData) {
         const connection = await pool.getConnection();
         try {

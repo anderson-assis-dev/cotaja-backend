@@ -3,6 +3,7 @@ const router = express.Router();
 const ratingController = require('../controllers/RatingController');
 const quoteController = require('../controllers/ProviderQuoteController');
 const ProfileView = require('../models/ProfileView');
+const User = require('../models/User');
 const { authenticateToken, requireClient } = require('../middlewares/auth');
 const multer = require('multer');
 const path = require('node:path');
@@ -11,6 +12,22 @@ const upload = multer({
   dest: path.join(__dirname, '../../uploads/temp/'),
   limits: { fileSize: 50 * 1024 * 1024, files: 10 },
   fileFilter: (req, file, cb) => cb(null, true),
+});
+
+// ── Rota pública — sem autenticação ──────────────────────────────
+router.get('/search', async (req, res) => {
+  try {
+    const { q, city, limit } = req.query;
+    const providers = await User.searchProviders({
+      category: q || null,
+      city: city || null,
+      limit: Math.min(Number(limit) || 20, 50),
+    });
+    return res.json({ success: true, data: providers });
+  } catch (error) {
+    console.error('Erro ao buscar prestadores:', error);
+    return res.status(500).json({ success: false, message: 'Erro interno do servidor' });
+  }
 });
 
 router.use(authenticateToken);

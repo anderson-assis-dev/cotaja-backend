@@ -10,6 +10,7 @@ const { testConnection } = require('./config/database');
 const routes = require('./routes');
 
 const app = express();
+app.set('trust proxy', 1);
 
 const { webhook } = require('./controllers/SubscriptionController');
 app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), webhook);

@@ -1,6 +1,5 @@
 const User = require('../models/User');
 const { connect } = require('puppeteer-real-browser');
-const { PDFParse } = require('pdf-parse');
 const path = require('path');
 const fs = require('fs');
 const { execSync } = require('child_process');
@@ -133,6 +132,9 @@ class CriminalCheckService {
       }, SELECTORS.nacionalidade);
       await new Promise(r => setTimeout(r, 2000));
 
+      console.log('[CriminalCheck] Preenchendo CPF...');
+      await CriminalCheckService.fillField(page, SELECTORS.cpf, cpfDigits);
+
       console.log('[CriminalCheck] Preenchendo Nome Completo...');
       await CriminalCheckService.fillField(page, SELECTORS.nome, user.name.toUpperCase());
 
@@ -143,6 +145,46 @@ class CriminalCheckService {
       await CriminalCheckService.fillField(page, SELECTORS.motherName, (user.mother_name || '').toUpperCase());
 
       await new Promise(r => setTimeout(r, 1000));
+
+      let pdfBuffer = null;
+      const pdfResponsePromise = new Promise((resolve) => {
+        page.on('response', async (response) => {
+          try {
+            const ct = response.headers()['content-type'] || '';
+            const url = response.url();
+            if (ct.includes('application/pdf') || url.endsWith('.pdf')) {
+              const buffer = await response.buffer();
+              if (buffer && buffer.length > 500) {
+                console.log(`[CriminalCheck] PDF interceptado via rede (${buffer.length} bytes, url: ${url})`);
+                resolve(buffer);
+              }
+            }
+          } catch {}
+        });
+      });
+
+      const newPagePdfPromise = new Promise((resolve) => {
+        browser.on('targetcreated', async (target) => {
+          if (target.type() === 'page') {
+            try {
+              const newPage = await target.page();
+              console.log('[CriminalCheck] Nova aba detectada:', newPage.url());
+              newPage.on('response', async (response) => {
+                try {
+                  const ct = response.headers()['content-type'] || '';
+                  if (ct.includes('application/pdf')) {
+                    const buffer = await response.buffer();
+                    if (buffer && buffer.length > 500) {
+                      console.log(`[CriminalCheck] PDF interceptado via nova aba (${buffer.length} bytes)`);
+                      resolve(buffer);
+                    }
+                  }
+                } catch {}
+              });
+            } catch {}
+          }
+        });
+      });
 
       console.log('[CriminalCheck] Clicando em Emitir CAC...');
       const btn = await page.$(SELECTORS.btnEmitir);
@@ -157,32 +199,57 @@ class CriminalCheckService {
         });
       }
 
-      console.log('[CriminalCheck] Aguardando PDF download...');
-      let pdfFilePath = null;
-      for (let i = 0; i < 12; i++) {
-        await new Promise(r => setTimeout(r, 2500));
-        const files = fs.readdirSync(DOWNLOAD_DIR).filter(f => f.endsWith('.pdf') || f.endsWith('CAC'));
-        if (files.length > 0) {
-          pdfFilePath = path.join(DOWNLOAD_DIR, files[0]);
-          break;
+      console.log('[CriminalCheck] Aguardando PDF (rede + download)...');
+
+      const networkPdf = await Promise.race([
+        pdfResponsePromise,
+        newPagePdfPromise,
+        new Promise(resolve => setTimeout(() => resolve(null), 30000)),
+      ]);
+
+      if (networkPdf) {
+        pdfBuffer = networkPdf;
+      }
+
+      if (!pdfBuffer) {
+        console.log('[CriminalCheck] PDF não veio via rede, tentando diretório de download...');
+        for (let i = 0; i < 12; i++) {
+          await new Promise(r => setTimeout(r, 2500));
+          const files = fs.readdirSync(DOWNLOAD_DIR).filter(f =>
+            f.endsWith('.pdf') || f.endsWith('CAC') || (!f.endsWith('.crdownload') && !f.endsWith('.tmp') && f.length > 5)
+          );
+          if (files.length > 0) {
+            const filePath = path.join(DOWNLOAD_DIR, files[0]);
+            pdfBuffer = fs.readFileSync(filePath);
+            console.log(`[CriminalCheck] PDF encontrado em disco: ${files[0]} (${pdfBuffer.length} bytes)`);
+            try { fs.unlinkSync(filePath); } catch {}
+            break;
+          }
         }
+      }
+
+      if (!pdfBuffer) {
+        const pageContent = await page.evaluate(() => document.body?.innerText?.substring(0, 1000) || '');
+        const pageUrl = page.url();
+        console.error(`[CriminalCheck] FALHA DOWNLOAD — URL: ${pageUrl}`);
+        console.error(`[CriminalCheck] FALHA DOWNLOAD — Conteúdo da página: ${pageContent}`);
+        const screenshotPath = `/tmp/criminal-check-fail-${Date.now()}.png`;
+        await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {});
+        console.error(`[CriminalCheck] Screenshot salvo em: ${screenshotPath}`);
       }
 
       await browser.close().catch(() => {});
       browser = null;
       if (browserRef) browserRef.browser = null;
 
-      if (!pdfFilePath) {
+      if (!pdfBuffer) {
         throw new Error('PDF não foi baixado após emitir CAC');
       }
 
-      const pdfBuffer = fs.readFileSync(pdfFilePath);
-      console.log('[CriminalCheck] PDF baixado:', pdfBuffer.length, 'bytes');
+      console.log('[CriminalCheck] PDF capturado:', pdfBuffer.length, 'bytes');
 
-      try { fs.unlinkSync(pdfFilePath); } catch {}
-
-      const parser = new PDFParse({ data: pdfBuffer });
-      const pdfData = await parser.getText();
+      const pdfParse = require('pdf-parse');
+      const pdfData = await pdfParse(pdfBuffer);
       const pdfText = pdfData.text;
 
       console.log('[CriminalCheck] Texto extraído do PDF:', pdfText.substring(0, 400));

@@ -199,6 +199,23 @@ class CriminalCheckService {
         });
       }
 
+      await new Promise(r => setTimeout(r, 3000));
+
+      const rateLimited = await page.evaluate(() => {
+        const body = document.body?.innerText || '';
+        return body.includes('excedeu o limite') || body.includes('limite máximo de tentativas');
+      });
+
+      if (rateLimited) {
+        console.error('[CriminalCheck] RATE LIMITED — site da PF bloqueou por excesso de tentativas');
+        await browser.close().catch(() => {});
+        browser = null;
+        if (browserRef) browserRef.browser = null;
+        const err = new Error('RATE_LIMITED: Limite de tentativas excedido no site da PF');
+        err.code = 'RATE_LIMITED';
+        throw err;
+      }
+
       console.log('[CriminalCheck] Aguardando PDF (rede + download)...');
 
       const networkPdf = await Promise.race([

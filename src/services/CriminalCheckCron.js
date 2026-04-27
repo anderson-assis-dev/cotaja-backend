@@ -1,10 +1,13 @@
 const { pool } = require('../config/database');
 const CriminalCheckService = require('./CriminalCheckService');
 
+const COOLDOWN_HOURS = 4;
+
 class CriminalCheckCron {
   constructor() {
     this.intervalId = null;
     this.running = false;
+    this.rateLimitedUntil = null;
   }
 
   start(intervalMs = 60 * 60 * 1000) {
@@ -28,6 +31,14 @@ class CriminalCheckCron {
 
     this.running = true;
     console.log('[CriminalCheckCron] Verificando prestadores pendentes...');
+
+    if (this.rateLimitedUntil && Date.now() < this.rateLimitedUntil) {
+      const remaining = Math.round((this.rateLimitedUntil - Date.now()) / 60000);
+      console.log(`[CriminalCheckCron] Rate limited pela PF, aguardando mais ${remaining} min`);
+      this.running = false;
+      return;
+    }
+    this.rateLimitedUntil = null;
 
     let connection;
     try {
@@ -79,6 +90,11 @@ class CriminalCheckCron {
           const result = await CriminalCheckService.checkProvider(user.id);
           console.log(`[CriminalCheckCron] ${user.name} -> ${result.criminal_check_code || 'ERRO'}`);
         } catch (error) {
+          if (error.code === 'RATE_LIMITED') {
+            this.rateLimitedUntil = Date.now() + COOLDOWN_HOURS * 60 * 60 * 1000;
+            console.error(`[CriminalCheckCron] PF rate limit atingido! Pausando por ${COOLDOWN_HOURS}h (até ${new Date(this.rateLimitedUntil).toISOString()})`);
+            break;
+          }
           console.error(`[CriminalCheckCron] Erro ao processar ${user.name}:`, error.message, error.stack);
         }
 

@@ -247,7 +247,7 @@ class DynamicNotificationService {
                    AND u.fcm_token IS NOT NULL AND u.fcm_token != ''
                    AND NOT EXISTS (
                        SELECT 1 FROM provider_ratings pr
-                       WHERE pr.order_id = o.id AND pr.client_id = u.id
+                       WHERE pr.provider_id = o.provider_id AND pr.client_id = u.id
                    )`
             );
             let sent = 0;

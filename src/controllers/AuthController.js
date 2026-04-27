@@ -642,8 +642,6 @@ class AuthController {
                 if (service_categories !== undefined && service_categories !== null) {
                     updateData.service_categories = service_categories;
                 }
-            } else if (profile_type === 'client') {
-                updateData.service_categories = null;
             }
 
             const updatedUser = await req.user.update(updateData);

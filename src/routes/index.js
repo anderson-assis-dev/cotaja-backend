@@ -12,6 +12,7 @@ const chatRoutes = require('./chat');
 const walletRoutes = require('./wallet');
 const adRoutes = require('./ads');
 const subscriptionRoutes = require('./subscriptions');
+const trackingRoutes = require('./tracking');
 
 router.use('/auth', authRoutes);
 router.use('/orders', orderRoutes);
@@ -24,6 +25,7 @@ router.use('/chat', chatRoutes);
 router.use('/wallet', walletRoutes);
 router.use('/ads', adRoutes);
 router.use('/subscriptions', subscriptionRoutes);
+router.use('/tracking', trackingRoutes);
 
 router.get('/health', (req, res) => {
     res.json({

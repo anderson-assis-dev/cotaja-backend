@@ -46,7 +46,6 @@ class AdController {
       if (!user || !user.stripe_customer_id) {
         return res.status(400).json({ success: false, message: 'Carteira não configurada. Adicione um cartão primeiro.' });
       }
-
       const purchase = await AdPurchase.create({
         user_id: userId,
         package_id: pkg.id,

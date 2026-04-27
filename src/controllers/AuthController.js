@@ -920,6 +920,109 @@ class AuthController {
             return res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
         }
     }
+
+    async getSecurityCode(req, res) {
+        try {
+            const user = req.user;
+
+            if (user.profile_type !== 'provider') {
+                return res.status(403).json({ success: false, message: 'Apenas prestadores possuem código de segurança.' });
+            }
+
+            let code = user.security_code;
+            if (!code && user.phone && user.phone.length >= 4) {
+                code = user.phone.replace(/\D/g, '').slice(-4);
+                await user.update({ security_code: code });
+            }
+
+            return res.json({ success: true, data: { security_code: code } });
+        } catch (error) {
+            console.error('Erro ao obter código de segurança:', error);
+            return res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+        }
+    }
+
+    async updateSecurityCode(req, res) {
+        try {
+            const user = req.user;
+
+            if (user.profile_type !== 'provider') {
+                return res.status(403).json({ success: false, message: 'Apenas prestadores podem alterar o código de segurança.' });
+            }
+
+            const { security_code } = req.body;
+
+            if (!security_code || security_code.length !== 4) {
+                return res.status(400).json({ success: false, message: 'O código deve ter exatamente 4 dígitos.' });
+            }
+
+            if (!/^\d+$/.test(security_code)) {
+                return res.status(400).json({ success: false, message: 'O código deve conter apenas números.' });
+            }
+
+            await user.update({ security_code });
+
+            return res.json({ success: true, message: 'Código de segurança atualizado com sucesso.', data: { security_code } });
+        } catch (error) {
+            console.error('Erro ao atualizar código de segurança:', error);
+            return res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+        }
+    }
+
+    async verifySecurityCode(req, res) {
+        try {
+            const { order_id, code } = req.body;
+            const user = req.user;
+
+            if (user.profile_type !== 'client') {
+                return res.status(403).json({ success: false, message: 'Apenas clientes podem verificar o código de segurança.' });
+            }
+
+            if (!order_id || !code) {
+                return res.status(400).json({ success: false, message: 'Informe o ID do pedido e o código.' });
+            }
+
+            const Order = require('../models/Order');
+            const order = await Order.findById(order_id);
+
+            if (!order) {
+                return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
+            }
+
+            if (order.client_id !== user.id) {
+                return res.status(403).json({ success: false, message: 'Você não é o cliente deste pedido.' });
+            }
+
+            if (!order.provider_id) {
+                return res.status(400).json({ success: false, message: 'Este pedido não possui um prestador atribuído.' });
+            }
+
+            const provider = await User.findById(order.provider_id);
+
+            if (!provider) {
+                return res.status(404).json({ success: false, message: 'Prestador não encontrado.' });
+            }
+
+            let providerCode = provider.security_code;
+            if (!providerCode && provider.phone && provider.phone.length >= 4) {
+                providerCode = provider.phone.replace(/\D/g, '').slice(-4);
+                await provider.update({ security_code: providerCode });
+            }
+
+            if (code !== providerCode) {
+                return res.status(400).json({ success: false, message: 'Código de segurança incorreto. Verifique com o prestador.' });
+            }
+
+            return res.json({
+                success: true,
+                message: 'Identidade do prestador confirmada com sucesso!',
+                data: { provider_name: provider.name, verified: true }
+            });
+        } catch (error) {
+            console.error('Erro ao verificar código de segurança:', error);
+            return res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+        }
+    }
 }
 
 const authController = new AuthController();

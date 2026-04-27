@@ -29,8 +29,9 @@ class ScheduleReminderService {
             return;
         }
         this.isRunning = true;
-        const connection = await pool.getConnection();
+        let connection;
         try {
+            connection = await pool.getConnection();
             const now = moment();
 
             const [dayReminders] = await connection.execute(
@@ -70,9 +71,9 @@ class ScheduleReminderService {
             }
 
         } catch (error) {
-            console.error('Erro ao verificar lembretes:', error);
+            console.error('[ScheduleReminder] Erro ao verificar lembretes:', error.message, error.stack);
         } finally {
-            connection.release();
+            if (connection) connection.release();
             this.isRunning = false;
         }
     }

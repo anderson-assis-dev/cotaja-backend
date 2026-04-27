@@ -20,14 +20,22 @@ const SELECTORS = {
 const CRIMINAL_CHECK_TIMEOUT_MS = 3 * 60 * 1000;
 
 class CriminalCheckService {
-  static checkProvider(userId) {
-    const timeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('CriminalCheck timeout após 3 minutos')), CRIMINAL_CHECK_TIMEOUT_MS)
-    );
-    return Promise.race([CriminalCheckService._doCheck(userId), timeout]);
+  static async checkProvider(userId) {
+    let browserRef = { browser: null };
+    const timeout = new Promise((_, reject) => {
+      setTimeout(() => {
+        if (browserRef.browser) {
+          console.error('[CriminalCheck] TIMEOUT — forçando fechamento do browser');
+          browserRef.browser.close().catch(() => {});
+          browserRef.browser = null;
+        }
+        reject(new Error('CriminalCheck timeout após 3 minutos'));
+      }, CRIMINAL_CHECK_TIMEOUT_MS);
+    });
+    return Promise.race([CriminalCheckService._doCheck(userId, browserRef), timeout]);
   }
 
-  static async _doCheck(userId) {
+  static async _doCheck(userId, browserRef) {
     const user = await User.findById(userId);
     if (!user) throw new Error('Usuário não encontrado');
     if (!user.isProvider()) throw new Error('Verificação disponível apenas para prestadores');
@@ -83,6 +91,7 @@ class CriminalCheckService {
 
       const conn = await connect(connectOpts);
       browser = conn.browser;
+      if (browserRef) browserRef.browser = browser;
       const page = conn.page;
 
       await page.setViewport({ width: 1920, height: 1080 });
@@ -159,8 +168,9 @@ class CriminalCheckService {
         }
       }
 
-      await browser.close();
+      await browser.close().catch(() => {});
       browser = null;
+      if (browserRef) browserRef.browser = null;
 
       if (!pdfFilePath) {
         throw new Error('PDF não foi baixado após emitir CAC');
@@ -198,8 +208,12 @@ class CriminalCheckService {
         message: naoConsta ? 'Não consta condenação criminal' : 'Consta condenação criminal',
       };
     } catch (error) {
-      if (browser) await browser.close().catch(() => {});
-      console.error('[CriminalCheck] Erro:', error.message);
+      if (browser) {
+        await browser.close().catch(() => {});
+        browser = null;
+        if (browserRef) browserRef.browser = null;
+      }
+      console.error('[CriminalCheck] Erro:', error.message, error.stack);
 
       await user.update({
         criminal_check: 0,

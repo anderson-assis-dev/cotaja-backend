@@ -6,12 +6,21 @@ const reEngagementCron = require('./services/ReEngagementCron');
 
 const PORT = process.env.APP_PORT || 3000;
 
+function ts() { return new Date().toISOString().replace('T', ' ').substring(0, 19); }
+
+const _log = console.log;
+const _err = console.error;
+const _warn = console.warn;
+console.log = (...args) => _log(`[${ts()}]`, ...args);
+console.error = (...args) => _err(`[${ts()}]`, ...args);
+console.warn = (...args) => _warn(`[${ts()}]`, ...args);
+
 process.on('uncaughtException', (err) => {
-    console.error('❌ [FATAL] uncaughtException — servidor continuando:', err);
+    console.error('❌ [FATAL] uncaughtException:', err);
 });
 
 process.on('unhandledRejection', (reason) => {
-    console.error('❌ [FATAL] unhandledRejection — servidor continuando:', reason);
+    console.error('❌ [FATAL] unhandledRejection:', reason);
 });
 
 const adDispatcher = new AdDispatchService();

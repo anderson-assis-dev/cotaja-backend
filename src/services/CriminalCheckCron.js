@@ -47,6 +47,9 @@ class CriminalCheckCron {
          LIMIT 5`
       );
 
+      connection.release();
+      connection = null;
+
       if (rows.length === 0) {
         console.log('[CriminalCheckCron] Nenhum prestador pendente.');
         this.running = false;
@@ -59,10 +62,15 @@ class CriminalCheckCron {
         const cpfDigits = (user.cpf || '').replace(/\D/g, '');
         if (cpfDigits.length > 11) {
           console.log(`[CriminalCheckCron] ${user.name} - CNPJ, marcando como isento`);
-          await connection.execute(
-            `UPDATE users SET criminal_check = 1, criminal_check_code = 'CNPJ_ISENTO', criminal_check_date = NOW() WHERE id = ?`,
-            [user.id]
-          );
+          const conn = await pool.getConnection();
+          try {
+            await conn.execute(
+              `UPDATE users SET criminal_check = 1, criminal_check_code = 'CNPJ_ISENTO', criminal_check_date = NOW() WHERE id = ?`,
+              [user.id]
+            );
+          } finally {
+            conn.release();
+          }
           continue;
         }
 
@@ -71,13 +79,13 @@ class CriminalCheckCron {
           const result = await CriminalCheckService.checkProvider(user.id);
           console.log(`[CriminalCheckCron] ${user.name} -> ${result.criminal_check_code || 'ERRO'}`);
         } catch (error) {
-          console.error(`[CriminalCheckCron] Erro ao processar ${user.name}:`, error.message);
+          console.error(`[CriminalCheckCron] Erro ao processar ${user.name}:`, error.message, error.stack);
         }
 
         await new Promise(r => setTimeout(r, 10000));
       }
     } catch (error) {
-      console.error('[CriminalCheckCron] Erro geral:', error.message);
+      console.error('[CriminalCheckCron] Erro geral:', error.message, error.stack);
     } finally {
       if (connection) connection.release();
       this.running = false;

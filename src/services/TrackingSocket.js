@@ -112,7 +112,7 @@ function setupTrackingSocket(io) {
       const room = `order-${socket.orderId}`;
 
       const [orderRows] = await pool.execute(
-        `SELECT o.id, o.title, o.client_id, o.latitude, o.longitude, u.name AS provider_name
+        `SELECT o.id, o.title, o.status, o.client_id, o.latitude, o.longitude, u.name AS provider_name
          FROM orders o
          JOIN users u ON u.id = o.provider_id
          WHERE o.id = ?`,
@@ -120,6 +120,11 @@ function setupTrackingSocket(io) {
       );
       if (orderRows.length === 0) return;
       const orderData = orderRows[0];
+
+      if (orderData.status === 'completed' || orderData.status === 'cancelled') {
+        socket.emit('tracking-error', { reason: 'order_inactive', status: orderData.status });
+        return;
+      }
 
       const trackingData = {
         provider_lat: data.latitude,

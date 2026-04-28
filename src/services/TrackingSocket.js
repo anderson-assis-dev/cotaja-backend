@@ -221,4 +221,11 @@ function setupTrackingSocket(io) {
   });
 }
 
-module.exports = { setupTrackingSocket };
+function getProviderLocation(orderId) {
+  const room = `order-${orderId}`;
+  const data = trackingRooms.get(room);
+  if (!data) return null;
+  return { lat: data.provider_lat, lng: data.provider_lng };
+}
+
+module.exports = { setupTrackingSocket, getProviderLocation };

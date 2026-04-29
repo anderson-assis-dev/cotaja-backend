@@ -132,9 +132,6 @@ class CriminalCheckService {
       }, SELECTORS.nacionalidade);
       await new Promise(r => setTimeout(r, 2000));
 
-      console.log('[CriminalCheck] Preenchendo CPF...');
-      await CriminalCheckService.fillField(page, SELECTORS.cpf, cpfDigits);
-
       console.log('[CriminalCheck] Preenchendo Nome Completo...');
       await CriminalCheckService.fillField(page, SELECTORS.nome, user.name.toUpperCase());
 
@@ -229,6 +226,62 @@ class CriminalCheckService {
       }
 
       if (!pdfBuffer) {
+        const pageBodyText = await page.evaluate(() => document.body?.innerText || '');
+        const isRequerimento = pageBodyText.includes('Não foi possível emitir') || pageBodyText.includes('Nao foi possivel emitir');
+
+        if (isRequerimento) {
+          const protocolMatch = pageBodyText.match(/protocolo[:\s]+(\d+)/i);
+          const protocolNumber = protocolMatch ? protocolMatch[1] : null;
+          console.log(`[CriminalCheck] Caso REQUERIMENTO detectado. Protocolo: ${protocolNumber}`);
+
+          const clicked = await page.evaluate(() => {
+            const elements = document.querySelectorAll('button, a, span');
+            for (const el of elements) {
+              const text = el.textContent?.toLowerCase() || '';
+              if (text.includes('realizar download') || text.includes('requerimento de certidão')) {
+                el.click();
+                return true;
+              }
+            }
+            return false;
+          });
+
+          if (clicked) {
+            console.log('[CriminalCheck] Clicando no download do Requerimento, aguardando arquivo...');
+            for (let i = 0; i < 8; i++) {
+              await new Promise(r => setTimeout(r, 2500));
+              const files = fs.readdirSync(DOWNLOAD_DIR).filter(f =>
+                f.endsWith('.pdf') || (!f.endsWith('.crdownload') && !f.endsWith('.tmp') && f.length > 5)
+              );
+              if (files.length > 0) {
+                const filePath = path.join(DOWNLOAD_DIR, files[0]);
+                console.log(`[CriminalCheck] Requerimento PDF: ${files[0]} (${fs.statSync(filePath).size} bytes)`);
+                try { fs.unlinkSync(filePath); } catch {}
+                break;
+              }
+            }
+          }
+
+          await browser.close().catch(() => {});
+          browser = null;
+          if (browserRef) browserRef.browser = null;
+
+          console.log('[CriminalCheck] Marcando como REQUERIMENTO (verificação presencial necessária)');
+          await user.update({
+            criminal_check: 1,
+            criminal_check_code: 'REQUERIMENTO',
+            criminal_check_date: new Date(),
+          });
+
+          return {
+            success: true,
+            passed: false,
+            code: protocolNumber,
+            criminal_check_code: 'REQUERIMENTO',
+            message: `Verificação presencial na PF necessária. Protocolo: ${protocolNumber || 'N/A'}`,
+          };
+        }
+
         console.log('[CriminalCheck] PDF não veio via rede, tentando diretório de download...');
         for (let i = 0; i < 12; i++) {
           await new Promise(r => setTimeout(r, 2500));

@@ -43,7 +43,7 @@ class ReEngagementCron {
         try {
             await dynamicNotificationService.runAll();
         } catch (err) {
-            console.error('[ReEngagementCron] ❌ Erro inesperado:', err.message);
+            console.error('[ReEngagementCron] ❌ Erro inesperado:', err.message, err.stack);
         } finally {
             this.isRunning = false;
         }

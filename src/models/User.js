@@ -3,6 +3,15 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const ProviderRating=require('./ProviderRating');
 
+function parseServiceCategories(val) {
+  if (!val) return null;
+  let parsed = val;
+  while (typeof parsed === 'string') {
+    try { parsed = JSON.parse(parsed); } catch { break; }
+  }
+  return Array.isArray(parsed) ? parsed : [];
+}
+
 class User {
     constructor(data = {}) {
         this.id = data.id || null;
@@ -73,7 +82,9 @@ class User {
                     userData.zip_code || null,
                     userData.latitude || null,
                     userData.longitude || null,
-                    userData.service_categories ? JSON.stringify(userData.service_categories) : null,
+                    userData.service_categories
+                      ? (typeof userData.service_categories === 'string' ? userData.service_categories : JSON.stringify(userData.service_categories))
+                      : null,
                     userData.fcm_token || null,
                     userData.device_platform || null,
                     0,
@@ -98,9 +109,7 @@ class User {
             if (rows.length === 0) return null;
 
             const userData = rows[0];
-            if (userData.service_categories) {
-                userData.service_categories = JSON.parse(userData.service_categories);
-            }
+            userData.service_categories = parseServiceCategories(userData.service_categories);
 
             return new User(userData);
         } finally {
@@ -119,9 +128,7 @@ class User {
             if (rows.length === 0) return null;
 
             const userData = rows[0];
-            if (userData.service_categories) {
-                userData.service_categories = JSON.parse(userData.service_categories);
-            }
+            userData.service_categories = parseServiceCategories(userData.service_categories);
 
             return new User(userData);
         } finally {
@@ -140,9 +147,7 @@ class User {
             if (rows.length === 0) return null;
 
             const userData = rows[0];
-            if (userData.service_categories) {
-                userData.service_categories = JSON.parse(userData.service_categories);
-            }
+            userData.service_categories = parseServiceCategories(userData.service_categories);
 
             return new User(userData);
         } finally {
@@ -159,9 +164,7 @@ class User {
             );
 
             return rows.map(userData => {
-                if (userData.service_categories) {
-                    userData.service_categories = JSON.parse(userData.service_categories);
-                }
+                userData.service_categories = parseServiceCategories(userData.service_categories);
                 return new User(userData);
             });
         } finally {
@@ -178,9 +181,7 @@ class User {
             );
 
             return rows.map(userData => {
-                if (userData.service_categories) {
-                    userData.service_categories = JSON.parse(userData.service_categories);
-                }
+                userData.service_categories = parseServiceCategories(userData.service_categories);
                 return new User(userData);
             });
         } finally {
@@ -197,9 +198,7 @@ class User {
             );
 
             return rows.map(userData => {
-                if (userData.service_categories) {
-                    userData.service_categories = JSON.parse(userData.service_categories);
-                }
+                userData.service_categories = parseServiceCategories(userData.service_categories);
                 return new User(userData);
             });
         } finally {
@@ -424,7 +423,7 @@ class User {
                 if (updateData[key] !== undefined && key !== 'id') {
                     fields.push(`${key} = ?`);
                     if (key === 'service_categories' && updateData[key]) {
-                        values.push(JSON.stringify(updateData[key]));
+                        values.push(typeof updateData[key] === 'string' ? updateData[key] : JSON.stringify(updateData[key]));
                     } else {
                         values.push(updateData[key]);
                     }

@@ -642,8 +642,6 @@ class AuthController {
                 if (service_categories !== undefined && service_categories !== null) {
                     updateData.service_categories = service_categories;
                 }
-            } else if (profile_type === 'client') {
-                updateData.service_categories = null;
             }
 
             const updatedUser = await req.user.update(updateData);
@@ -995,6 +993,28 @@ class AuthController {
 
             if (!order.provider_id) {
                 return res.status(400).json({ success: false, message: 'Este pedido não possui um prestador atribuído.' });
+            }
+
+            const { getProviderLocation } = require('../services/TrackingSocket');
+            const providerPos = getProviderLocation(order_id);
+            if (!providerPos) {
+                return res.status(403).json({ success: false, message: 'O prestador precisa estar a caminho para verificar o código de segurança.' });
+            }
+
+            const toRad = (v) => (v * Math.PI) / 180;
+            const R = 6371;
+            const dLat = toRad(Number(order.latitude) - providerPos.lat);
+            const dLng = toRad(Number(order.longitude) - providerPos.lng);
+            const sinA = Math.sin(dLat / 2) ** 2 +
+                Math.cos(toRad(providerPos.lat)) * Math.cos(toRad(Number(order.latitude))) * Math.sin(dLng / 2) ** 2;
+            const distKm = R * 2 * Math.atan2(Math.sqrt(sinA), Math.sqrt(1 - sinA));
+
+            if (distKm > 3) {
+                return res.status(403).json({
+                    success: false,
+                    message: `O prestador ainda está longe (${distKm.toFixed(1)} km). A verificação será liberada quando ele estiver a menos de 3 km.`,
+                    data: { distance_km: distKm },
+                });
             }
 
             const provider = await User.findById(order.provider_id);

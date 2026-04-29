@@ -10,6 +10,7 @@ const { testConnection } = require('./config/database');
 const routes = require('./routes');
 
 const app = express();
+app.set('trust proxy', 1);
 
 const { webhook } = require('./controllers/SubscriptionController');
 app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), webhook);
@@ -27,7 +28,7 @@ app.use(cors({
 
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 100,
+    max: 1000,
     message: {
         success: false,
         message: 'Muitas requisições, tente novamente mais tarde.'

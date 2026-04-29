@@ -13,6 +13,7 @@ const walletRoutes = require('./wallet');
 const adRoutes = require('./ads');
 const subscriptionRoutes = require('./subscriptions');
 const affiliateRoutes = require('./affiliates');
+const trackingRoutes = require('./tracking');
 
 router.use('/auth', authRoutes);
 router.use('/orders', orderRoutes);
@@ -26,6 +27,7 @@ router.use('/wallet', walletRoutes);
 router.use('/ads', adRoutes);
 router.use('/subscriptions', subscriptionRoutes);
 router.use('/affiliates', affiliateRoutes);
+router.use('/tracking', trackingRoutes);
 
 router.get('/health', (req, res) => {
     res.json({

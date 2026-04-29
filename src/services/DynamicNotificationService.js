@@ -51,47 +51,32 @@ class DynamicNotificationService {
     }
 
     async _isDailyCapReached(userId) {
-        const connection = await pool.getConnection();
-        try {
-            const [rows] = await connection.execute(
-                `SELECT COUNT(*) AS total FROM notification_sent_log
-                 WHERE user_id = ? AND sent_at >= CURDATE()`,
-                [userId]
-            );
-            return rows[0].total >= DAILY_CAP;
-        } finally {
-            connection.release();
-        }
+        const [rows] = await pool.execute(
+            `SELECT COUNT(*) AS total FROM notification_sent_log
+             WHERE user_id = ? AND sent_at >= CURDATE()`,
+            [userId]
+        );
+        return rows[0].total >= DAILY_CAP;
     }
 
     async _wasRecentlySent(userId, triggerType) {
         const cooldownDays = COOLDOWNS[triggerType] ?? 3;
-        const connection = await pool.getConnection();
-        try {
-            const [rows] = await connection.execute(
-                `SELECT id FROM notification_sent_log
-                 WHERE user_id = ? AND trigger_type = ?
-                   AND sent_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
-                 LIMIT 1`,
-                [userId, triggerType, cooldownDays]
-            );
-            return rows.length > 0;
-        } finally {
-            connection.release();
-        }
+        const [rows] = await pool.execute(
+            `SELECT id FROM notification_sent_log
+             WHERE user_id = ? AND trigger_type = ?
+               AND sent_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+             LIMIT 1`,
+            [userId, triggerType, cooldownDays]
+        );
+        return rows.length > 0;
     }
 
     async _logSent(userId, triggerType) {
-        const connection = await pool.getConnection();
-        try {
-            await connection.execute(
-                `INSERT INTO notification_sent_log (user_id, trigger_type, sent_at)
-                 VALUES (?, ?, NOW())`,
-                [userId, triggerType]
-            );
-        } finally {
-            connection.release();
-        }
+        await pool.execute(
+            `INSERT INTO notification_sent_log (user_id, trigger_type, sent_at)
+             VALUES (?, ?, NOW())`,
+            [userId, triggerType]
+        );
     }
 
     async _send(user, triggerType, title, message, data = {}) {
@@ -141,9 +126,7 @@ class DynamicNotificationService {
     }
 
     async checkClientOpenOrderWithoutProposals() {
-        const connection = await pool.getConnection();
-        try {
-            const [rows] = await connection.execute(
+        const [rows] = await pool.execute(
                 `SELECT u.id, u.email, u.fcm_token, u.device_platform, o.id AS order_id, o.title
                  FROM orders o
                  JOIN users u ON u.id = o.client_id
@@ -163,15 +146,10 @@ class DynamicNotificationService {
                 if (ok) sent++;
             }
             console.log(`[DynNotif] client_open_order_48h: ${sent}/${rows.length} enviados`);
-        } finally {
-            connection.release();
-        }
     }
 
     async checkClientUnreadProposal() {
-        const connection = await pool.getConnection();
-        try {
-            const [rows] = await connection.execute(
+        const [rows] = await pool.execute(
                 `SELECT DISTINCT u.id, u.email, u.fcm_token, u.device_platform,
                         o.id AS order_id, o.title,
                         COUNT(p.id) AS proposal_count
@@ -200,15 +178,10 @@ class DynamicNotificationService {
                 if (ok) sent++;
             }
             console.log(`[DynNotif] client_unread_proposal_24h: ${sent}/${rows.length} enviados`);
-        } finally {
-            connection.release();
-        }
     }
 
     async checkClientInactive7Days() {
-        const connection = await pool.getConnection();
-        try {
-            const [rows] = await connection.execute(
+        const [rows] = await pool.execute(
                 `SELECT id, email, fcm_token, device_platform
                  FROM users
                  WHERE profile_type = 'client'
@@ -234,15 +207,10 @@ class DynamicNotificationService {
                 if (ok) sent++;
             }
             console.log(`[DynNotif] client_inactive_7d: ${sent}/${rows.length} enviados`);
-        } finally {
-            connection.release();
-        }
     }
 
     async checkClientRetentionCycle() {
-        const connection = await pool.getConnection();
-        try {
-            const [rows] = await connection.execute(
+        const [rows] = await pool.execute(
                 `SELECT u.id, u.email, u.fcm_token, u.device_platform,
                         MAX(o.updated_at) AS last_order_date
                  FROM users u
@@ -264,15 +232,10 @@ class DynamicNotificationService {
                 if (ok) sent++;
             }
             console.log(`[DynNotif] client_inactive_30d: ${sent}/${rows.length} enviados`);
-        } finally {
-            connection.release();
-        }
     }
 
     async checkClientPendingRating() {
-        const connection = await pool.getConnection();
-        try {
-            const [rows] = await connection.execute(
+        const [rows] = await pool.execute(
                 `SELECT DISTINCT u.id, u.name, u.email, u.fcm_token, u.device_platform,
                         o.id AS order_id, o.title
                  FROM orders o
@@ -284,7 +247,7 @@ class DynamicNotificationService {
                    AND u.fcm_token IS NOT NULL AND u.fcm_token != ''
                    AND NOT EXISTS (
                        SELECT 1 FROM provider_ratings pr
-                       WHERE pr.order_id = o.id AND pr.client_id = u.id
+                       WHERE pr.provider_id = o.provider_id AND pr.client_id = u.id
                    )`
             );
             let sent = 0;
@@ -297,15 +260,10 @@ class DynamicNotificationService {
                 if (ok) sent++;
             }
             console.log(`[DynNotif] client_pending_rating: ${sent}/${rows.length} enviados`);
-        } finally {
-            connection.release();
-        }
     }
 
     async checkProviderNoAdAfterRegistration() {
-        const connection = await pool.getConnection();
-        try {
-            const [rows] = await connection.execute(
+        const [rows] = await pool.execute(
                 `SELECT u.id, u.email, u.fcm_token, u.device_platform
                  FROM users u
                  WHERE u.profile_type = 'provider'
@@ -326,15 +284,10 @@ class DynamicNotificationService {
                 if (ok) sent++;
             }
             console.log(`[DynNotif] provider_no_ad_3d: ${sent}/${rows.length} enviados`);
-        } finally {
-            connection.release();
-        }
     }
 
     async checkProviderProposalPending() {
-        const connection = await pool.getConnection();
-        try {
-            const [rows] = await connection.execute(
+        const [rows] = await pool.execute(
                 `SELECT DISTINCT u.id, u.email, u.fcm_token, u.device_platform,
                         COUNT(p.id) AS pending_count
                  FROM proposals p
@@ -355,15 +308,10 @@ class DynamicNotificationService {
                 if (ok) sent++;
             }
             console.log(`[DynNotif] provider_proposal_pending_5d: ${sent}/${rows.length} enviados`);
-        } finally {
-            connection.release();
-        }
     }
 
     async checkProviderNoAcceptedProposalThisMonth() {
-        const connection = await pool.getConnection();
-        try {
-            const [rows] = await connection.execute(
+        const [rows] = await pool.execute(
                 `SELECT u.id, u.email, u.fcm_token, u.device_platform
                  FROM users u
                  WHERE u.profile_type = 'provider'
@@ -387,15 +335,10 @@ class DynamicNotificationService {
                 if (ok) sent++;
             }
             console.log(`[DynNotif] provider_no_accepted_month: ${sent}/${rows.length} enviados`);
-        } finally {
-            connection.release();
-        }
     }
 
     async checkClientWelcomeFirstOrder() {
-        const connection = await pool.getConnection();
-        try {
-            const [rows] = await connection.execute(
+        const [rows] = await pool.execute(
                 `SELECT id, name, email, fcm_token, device_platform
                  FROM users
                  WHERE profile_type = 'client'
@@ -417,16 +360,10 @@ class DynamicNotificationService {
                 if (ok) sent++;
             }
             console.log(`[DynNotif] client_welcome_first_order: ${sent}/${rows.length} enviados`);
-        } finally {
-            connection.release();
-        }
     }
 
     async checkClientProposalAboutToExpire() {
-        const connection = await pool.getConnection();
-        try {
-            // Proposals are considered to expire after 7 days; notify when 24h remain (created 6+ days ago)
-            const [rows] = await connection.execute(
+        const [rows] = await pool.execute(
                 `SELECT DISTINCT u.id, u.name, u.email, u.fcm_token, u.device_platform,
                         o.id AS order_id, o.title,
                         COUNT(p.id) AS proposal_count
@@ -452,16 +389,10 @@ class DynamicNotificationService {
                 if (ok) sent++;
             }
             console.log(`[DynNotif] client_proposal_about_to_expire: ${sent}/${rows.length} enviados`);
-        } finally {
-            connection.release();
-        }
     }
 
     async checkClientProposalExpiring() {
-        const connection = await pool.getConnection();
-        try {
-            // Order accepted (in_progress) but stalled for 5+ days — nudge client to follow up
-            const [rows] = await connection.execute(
+        const [rows] = await pool.execute(
                 `SELECT u.id, u.email, u.fcm_token, u.device_platform,
                         o.id AS order_id, o.title
                  FROM orders o
@@ -481,15 +412,10 @@ class DynamicNotificationService {
                 if (ok) sent++;
             }
             console.log(`[DynNotif] client_proposal_expiring: ${sent}/${rows.length} enviados`);
-        } finally {
-            connection.release();
-        }
     }
 
     async checkClientOrderCompletedNoReorder() {
-        const connection = await pool.getConnection();
-        try {
-            const [rows] = await connection.execute(
+        const [rows] = await pool.execute(
                 `SELECT u.id, u.name, u.email, u.fcm_token, u.device_platform,
                         MAX(o.updated_at) AS last_completed_at
                  FROM users u
@@ -516,15 +442,10 @@ class DynamicNotificationService {
                 if (ok) sent++;
             }
             console.log(`[DynNotif] client_order_completed_no_reorder: ${sent}/${rows.length} enviados`);
-        } finally {
-            connection.release();
-        }
     }
 
     async checkProviderProfileIncomplete() {
-        const connection = await pool.getConnection();
-        try {
-            const [rows] = await connection.execute(
+        const [rows] = await pool.execute(
                 `SELECT u.id, u.name, u.email, u.fcm_token, u.device_platform,
                         (u.avatar_base64 IS NULL OR u.avatar_base64 = '') AS missing_avatar,
                         (SELECT COUNT(*) FROM services s WHERE s.provider_id = u.id AND s.status = 'active') AS service_count
@@ -556,15 +477,10 @@ class DynamicNotificationService {
                 if (ok) sent++;
             }
             console.log(`[DynNotif] provider_profile_incomplete: ${sent}/${rows.length} enviados`);
-        } finally {
-            connection.release();
-        }
     }
 
     async checkClientDailyInspire() {
-        const connection = await pool.getConnection();
-        try {
-            const [rows] = await connection.execute(
+        const [rows] = await pool.execute(
                 `SELECT id, email, fcm_token, device_platform
                  FROM users
                  WHERE profile_type = 'client'
@@ -593,15 +509,10 @@ class DynamicNotificationService {
                 if (ok) sent++;
             }
             console.log(`[DynNotif] client_daily_inspire: ${sent}/${rows.length} enviados`);
-        } finally {
-            connection.release();
-        }
     }
 
     async checkProviderDailyGrow() {
-        const connection = await pool.getConnection();
-        try {
-            const [rows] = await connection.execute(
+        const [rows] = await pool.execute(
                 `SELECT id, email, fcm_token, device_platform
                  FROM users
                  WHERE profile_type = 'provider'
@@ -630,15 +541,10 @@ class DynamicNotificationService {
                 if (ok) sent++;
             }
             console.log(`[DynNotif] provider_daily_grow: ${sent}/${rows.length} enviados`);
-        } finally {
-            connection.release();
-        }
     }
 
     async checkProviderUnusedAdCredits() {
-        const connection = await pool.getConnection();
-        try {
-            const [rows] = await connection.execute(
+        const [rows] = await pool.execute(
                 `SELECT u.id, u.email, u.fcm_token, u.device_platform,
                         SUM(ap.remaining_ads) AS total_credits
                  FROM ad_purchases ap
@@ -665,9 +571,6 @@ class DynamicNotificationService {
                 if (ok) sent++;
             }
             console.log(`[DynNotif] provider_unused_credits: ${sent}/${rows.length} enviados`);
-        } finally {
-            connection.release();
-        }
     }
 
     async runAll() {
@@ -695,7 +598,7 @@ class DynamicNotificationService {
 
         results.forEach((r, i) => {
             if (r.status === 'rejected') {
-                console.error(`[DynNotif] ❌ Task ${i} falhou:`, r.reason?.message);
+                console.error(`[DynNotif] ❌ Task ${i} falhou:`, r.reason?.message, r.reason?.stack);
             }
         });
 

@@ -1,10 +1,13 @@
 const { pool } = require('../config/database');
 const CriminalCheckService = require('./CriminalCheckService');
 
+const COOLDOWN_HOURS = 4;
+
 class CriminalCheckCron {
   constructor() {
     this.intervalId = null;
     this.running = false;
+    this.rateLimitedUntil = null;
   }
 
   start(intervalMs = 60 * 60 * 1000) {
@@ -29,6 +32,14 @@ class CriminalCheckCron {
     this.running = true;
     console.log('[CriminalCheckCron] Verificando prestadores pendentes...');
 
+    if (this.rateLimitedUntil && Date.now() < this.rateLimitedUntil) {
+      const remaining = Math.round((this.rateLimitedUntil - Date.now()) / 60000);
+      console.log(`[CriminalCheckCron] Rate limited pela PF, aguardando mais ${remaining} min`);
+      this.running = false;
+      return;
+    }
+    this.rateLimitedUntil = null;
+
     let connection;
     try {
       connection = await pool.getConnection();
@@ -47,6 +58,9 @@ class CriminalCheckCron {
          LIMIT 5`
       );
 
+      connection.release();
+      connection = null;
+
       if (rows.length === 0) {
         console.log('[CriminalCheckCron] Nenhum prestador pendente.');
         this.running = false;
@@ -59,10 +73,15 @@ class CriminalCheckCron {
         const cpfDigits = (user.cpf || '').replace(/\D/g, '');
         if (cpfDigits.length > 11) {
           console.log(`[CriminalCheckCron] ${user.name} - CNPJ, marcando como isento`);
-          await connection.execute(
-            `UPDATE users SET criminal_check = 1, criminal_check_code = 'CNPJ_ISENTO', criminal_check_date = NOW() WHERE id = ?`,
-            [user.id]
-          );
+          const conn = await pool.getConnection();
+          try {
+            await conn.execute(
+              `UPDATE users SET criminal_check = 1, criminal_check_code = 'CNPJ_ISENTO', criminal_check_date = NOW() WHERE id = ?`,
+              [user.id]
+            );
+          } finally {
+            conn.release();
+          }
           continue;
         }
 
@@ -71,13 +90,18 @@ class CriminalCheckCron {
           const result = await CriminalCheckService.checkProvider(user.id);
           console.log(`[CriminalCheckCron] ${user.name} -> ${result.criminal_check_code || 'ERRO'}`);
         } catch (error) {
-          console.error(`[CriminalCheckCron] Erro ao processar ${user.name}:`, error.message);
+          if (error.code === 'RATE_LIMITED') {
+            this.rateLimitedUntil = Date.now() + COOLDOWN_HOURS * 60 * 60 * 1000;
+            console.error(`[CriminalCheckCron] PF rate limit atingido! Pausando por ${COOLDOWN_HOURS}h (até ${new Date(this.rateLimitedUntil).toISOString()})`);
+            break;
+          }
+          console.error(`[CriminalCheckCron] Erro ao processar ${user.name}:`, error.message, error.stack);
         }
 
         await new Promise(r => setTimeout(r, 10000));
       }
     } catch (error) {
-      console.error('[CriminalCheckCron] Erro geral:', error.message);
+      console.error('[CriminalCheckCron] Erro geral:', error.message, error.stack);
     } finally {
       if (connection) connection.release();
       this.running = false;

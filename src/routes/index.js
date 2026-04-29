@@ -12,6 +12,7 @@ const chatRoutes = require('./chat');
 const walletRoutes = require('./wallet');
 const adRoutes = require('./ads');
 const subscriptionRoutes = require('./subscriptions');
+const affiliateRoutes = require('./affiliates');
 
 router.use('/auth', authRoutes);
 router.use('/orders', orderRoutes);
@@ -24,6 +25,7 @@ router.use('/chat', chatRoutes);
 router.use('/wallet', walletRoutes);
 router.use('/ads', adRoutes);
 router.use('/subscriptions', subscriptionRoutes);
+router.use('/affiliates', affiliateRoutes);
 
 router.get('/health', (req, res) => {
     res.json({

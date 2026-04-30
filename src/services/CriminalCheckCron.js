@@ -10,8 +10,8 @@ class CriminalCheckCron {
     this.rateLimitedUntil = null;
   }
 
-  start(intervalMs = 60 * 60 * 1000) {
-    console.log('[CriminalCheckCron] Iniciado (intervalo: 1h)');
+  start(intervalMs = 5 * 60 * 60 * 1000) {
+    console.log('[CriminalCheckCron] Iniciado (intervalo: 5h)');
     this.intervalId = setInterval(() => this.run(), intervalMs);
     setTimeout(() => this.run(), 30000);
   }

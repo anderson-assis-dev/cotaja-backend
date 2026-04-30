@@ -398,6 +398,31 @@ class AuthController {
                 console.log('✅ FCM token salvo no registro:', fcm_token.substring(0, 20) + '...');
             }
 
+            const { ref_code } = req.body;
+            if (ref_code) {
+                try {
+                    const cleanCode = ref_code.toLowerCase().replaceAll(/[^a-z0-9]/g, '');
+                    const [affiliateRows] = await pool.query(
+                        'SELECT * FROM affiliates WHERE code = ? AND status = ?',
+                        [cleanCode, 'active']
+                    );
+                    if (affiliateRows.length > 0) {
+                        const affiliate = affiliateRows[0];
+                        await pool.query(
+                            'UPDATE users SET ref_code = ?, referred_by = ? WHERE id = ?',
+                            [affiliate.code, affiliate.id, user.id]
+                        );
+                        await pool.query(
+                            'INSERT INTO affiliate_conversions (affiliate_id, referred_user_id, event_type, commission_value) VALUES (?, ?, ?, ?)',
+                            [affiliate.id, user.id, 'install', affiliate.commission_install]
+                        );
+                        console.log('✅ Conversão de afiliado registrada:', affiliate.code);
+                    }
+                } catch (affiliateError) {
+                    console.error('Affiliate tracking error (non-blocking):', affiliateError.message);
+                }
+            }
+
             sendWelcomeEmail(user, user.activation_token).catch(error => {
                 console.error('❌ Erro ao enviar e-mail de boas-vindas (background):', error.message);
             });

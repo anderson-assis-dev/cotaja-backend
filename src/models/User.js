@@ -248,7 +248,7 @@ class User {
         }
     }
 
-    static async listProvidersPublic({ search = null } = {}) {
+    static async listProvidersPublic({ search = null, category = null } = {}) {
         const connection = await pool.getConnection();
         try {
             let query = `
@@ -262,6 +262,10 @@ class User {
                 query += ' AND (LOWER(name) LIKE ? OR LOWER(email) LIKE ? OR LOWER(phone) LIKE ?)';
                 const q = `%${String(search).toLowerCase()}%`;
                 params.push(q, q, q);
+            }
+            if (category) {
+                query += ' AND JSON_CONTAINS(service_categories, ?)';
+                params.push(JSON.stringify(String(category)));
             }
             query += ' ORDER BY created_at DESC';
             const [rows] = await connection.execute(query, params);

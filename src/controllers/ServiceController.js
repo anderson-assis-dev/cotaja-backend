@@ -203,7 +203,7 @@ class ServiceController {
                 UserSearchCategory.track(userId, category).catch(() => {});
             }
 
-            const providers = await User.listProvidersPublic({ search: search || null });
+            const providers = await User.listProvidersPublic({ search: search || null, category: category || null });
             const filteredProviders = provider_id ? providers.filter(p => String(p.id) === String(provider_id)) : providers;
             const statsMap=await ProviderRating.getStatsForProviders(filteredProviders.map(p=>p.id));
             const enrichedProviders=filteredProviders.map(p=>{

@@ -60,6 +60,26 @@ class CriminalCheckService {
       throw new Error('Dados incompletos: nome, CPF, nome da mãe e data de nascimento são obrigatórios');
     }
 
+    const birthDate = new Date(user.birth_date);
+    const ageDiffMs = Date.now() - birthDate.getTime();
+    const ageDate = new Date(ageDiffMs);
+    const age = Math.abs(ageDate.getUTCFullYear() - 1970);
+    if (age >= 50) {
+      console.log(`[CriminalCheck] Usuário ${user.name} tem ${age} anos (>=50), pulando verificação`);
+      await user.update({
+        criminal_check: 1,
+        criminal_check_code: 'IDADE_INCOMPATIVEL',
+        criminal_check_date: new Date(),
+      });
+      return {
+        success: true,
+        passed: true,
+        code: null,
+        criminal_check_code: 'IDADE_INCOMPATIVEL',
+        message: 'Usuário com 50+ anos - verificação não disponível no site da Receita Federal',
+      };
+    }
+
     const birthDateBR = CriminalCheckService.formatBirthDateBR(user.birth_date);
 
     console.log('[CriminalCheck] Iniciando verificação para:', user.name);
@@ -82,7 +102,29 @@ class CriminalCheckService {
         headless: false,
         turnstile: true,
         disableXvfb: false,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--window-size=1920,1080'],
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-gpu',
+          '--disable-dev-shm-usage',
+          '--disable-extensions',
+          '--disable-background-networking',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-breakpad',
+          '--disable-component-extensions-with-background-pages',
+          '--disable-component-update',
+          '--disable-default-apps',
+          '--disable-hang-monitor',
+          '--disable-renderer-backgrounding',
+          '--disable-sync',
+          '--disable-translate',
+          '--metrics-recording-only',
+          '--mute-audio',
+          '--no-first-run',
+          '--window-size=1280,720',
+          '--js-flags=--max-old-space-size=256',
+        ],
       };
       if (chromePath) {
         connectOpts.customConfig = { chromePath };
@@ -93,7 +135,17 @@ class CriminalCheckService {
       if (browserRef) browserRef.browser = browser;
       const page = conn.page;
 
-      await page.setViewport({ width: 1920, height: 1080 });
+      await page.setViewport({ width: 1280, height: 720 });
+
+      await page.setRequestInterception(true);
+      page.on('request', (req) => {
+        const resourceType = req.resourceType();
+        if (['image', 'font', 'media'].includes(resourceType)) {
+          req.abort();
+        } else {
+          req.continue();
+        }
+      });
 
       if (!fs.existsSync(DOWNLOAD_DIR)) fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
       const existingFiles = fs.readdirSync(DOWNLOAD_DIR);

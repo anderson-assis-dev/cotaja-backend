@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const { connect } = require('puppeteer-real-browser');
+const { PDFParse } = require('pdf-parse');
 const path = require('path');
 const fs = require('fs');
 const { execSync } = require('child_process');
@@ -136,16 +137,6 @@ class CriminalCheckService {
       const page = conn.page;
 
       await page.setViewport({ width: 1280, height: 720 });
-
-      await page.setRequestInterception(true);
-      page.on('request', (req) => {
-        const resourceType = req.resourceType();
-        if (['image', 'font', 'media'].includes(resourceType)) {
-          req.abort();
-        } else {
-          req.continue();
-        }
-      });
 
       if (!fs.existsSync(DOWNLOAD_DIR)) fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
       const existingFiles = fs.readdirSync(DOWNLOAD_DIR);
@@ -370,8 +361,8 @@ class CriminalCheckService {
 
       console.log('[CriminalCheck] PDF capturado:', pdfBuffer.length, 'bytes');
 
-      const pdfParse = require('pdf-parse');
-      const pdfData = await pdfParse(pdfBuffer);
+      const parser = new PDFParse({ data: pdfBuffer });
+      const pdfData = await parser.getText();
       const pdfText = pdfData.text;
 
       console.log('[CriminalCheck] Texto extraído do PDF:', pdfText.substring(0, 400));

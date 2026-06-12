@@ -42,10 +42,13 @@ class PushNotificationService {
     
     async sendAlert(data) {
         try {
-            if (!this.checkVar(data.registration_id) ||
-                !this.checkVar(data.device) ||
-                !this.checkVar(data.title) ||
-                !this.checkVar(data.message)) {
+            // Sem token de notificação: não há para quem enviar. Retorna em silêncio
+            // (não lança erro) para não gerar ruído nem travar envios em massa.
+            if (!this.checkVar(data.registration_id) || !this.checkVar(data.device)) {
+                return { success: false, skipped: true, reason: 'missing_token' };
+            }
+
+            if (!this.checkVar(data.title) || !this.checkVar(data.message)) {
                 throw new Error('Missing required fields');
             }
 
@@ -158,12 +161,13 @@ class PushNotificationService {
             const isProduction = environments[i] === 'production';
             const isLastAttempt = i === environments.length - 1;
 
+            let apnProvider = null;
             try {
                 console.log(`📱 Sending iOS notification via ${isProduction ? 'PRODUCTION' : 'SANDBOX'} APNs`);
                 console.log(`   Certificate: ${this.iosCertPath}`);
                 console.log(`   Key: ${this.iosKeyPath}`);
 
-                const apnProvider = new apn.Provider({
+                apnProvider = new apn.Provider({
                     cert: this.iosCertPath,
                     key: this.iosKeyPath,
                     production: isProduction
@@ -187,8 +191,6 @@ class PushNotificationService {
                 }
 
                 const result = await apnProvider.send(notification, registrationId);
-
-                apnProvider.shutdown();
 
                 if (result.failed && result.failed.length > 0) {
                     const error = result.failed[0];
@@ -223,6 +225,12 @@ class PushNotificationService {
                 }
 
                 console.log(`⚠️  Erro em ${isProduction ? 'PRODUCTION' : 'SANDBOX'}, tentando ${isProduction ? 'SANDBOX' : 'PRODUCTION'}...`);
+            } finally {
+                // Garante o fechamento da conexão APNs em qualquer caminho
+                // (sucesso, erro ou fallback) para não vazar conexões/FDs.
+                if (apnProvider) {
+                    try { apnProvider.shutdown(); } catch (e) { /* ignore */ }
+                }
             }
         }
     }
@@ -347,18 +355,16 @@ class PushNotificationService {
 
     
     async sendBulkNotifications(devices, title, message, options = {}) {
-        console.log(`📤 [sendBulkNotifications] Enviando para ${devices.length} dispositivos em paralelo`);
+        // Ignora dispositivos sem token (usuários sem notificação cadastrada).
+        const validDevices = (devices || []).filter(d => this.checkVar(d && d.token) && this.checkVar(d && d.platform));
+        const skipped = (devices || []).length - validDevices.length;
+
+        console.log(`📤 [sendBulkNotifications] ${validDevices.length} dispositivos com token (${skipped} ignorados sem token)`);
         console.log(`   Título: ${title}`);
         console.log(`   Mensagem: ${message}`);
 
-        const promises = devices.map((device, i) => {
-            console.log(`📱 [${i + 1}/${devices.length}] Enfileirando:`, {
-                name: device.name,
-                platform: device.platform,
-                token: device.token ? device.token.substring(0, 20) + '...' : 'AUSENTE'
-            });
-
-            return this.sendAlert({
+        const sendOne = (device) =>
+            this.sendAlert({
                 registration_id: device.token,
                 device: device.platform,
                 title: title,
@@ -368,15 +374,21 @@ class PushNotificationService {
                 production: true,
                 extra_data: options.data
             }).then(result => {
-                console.log(`   ✅ Sucesso para ${device.name}`);
                 return { device_id: device.id, success: true, result };
             }).catch(error => {
                 console.error(`   ❌ Falha para ${device.name}:`, error.message);
                 return { device_id: device.id, success: false, error: error.message };
             });
-        });
 
-        const results = await Promise.all(promises);
+        // Processa em lotes para não abrir todas as conexões APNs/FCM de uma vez
+        // (evita exaustão de conexões/memória em disparos para muitos prestadores).
+        const BATCH_SIZE = 25;
+        const results = [];
+        for (let start = 0; start < validDevices.length; start += BATCH_SIZE) {
+            const batch = validDevices.slice(start, start + BATCH_SIZE);
+            const batchResults = await Promise.all(batch.map(sendOne));
+            results.push(...batchResults);
+        }
 
         console.log(`📊 [sendBulkNotifications] Resultado: ${results.filter(r => r.success).length} sucesso, ${results.filter(r => !r.success).length} falhas`);
         return results;

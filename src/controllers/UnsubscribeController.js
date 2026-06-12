@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { pool } = require('../config/database');
 
-const APP_BASE_URL = process.env.APP_URL || 'https://api.cotaja.io';
+const APP_BASE_URL = process.env.APP_URL || 'https://app.cotaja.io';
 const SECRET = process.env.JWT_SECRET || 'your-default-secret-key';
 
 /** Assina o e-mail com HMAC-SHA256 (evita que qualquer um desinscreva terceiros). */

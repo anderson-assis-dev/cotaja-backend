@@ -15,7 +15,7 @@
 
 // Domínio que SERVE o backend (rotas redirecionadoras /new-service, /order/:id...).
 // Os CTAs dos e-mails apontam para cá para que o backend abra o deep link do app.
-const APP_BASE_URL = process.env.APP_URL || 'https://api.cotaja.io';
+const APP_BASE_URL = process.env.APP_URL || 'https://app.cotaja.io';
 const IOS_URL     = 'https://apps.apple.com/app/id6740817289';
 const ANDROID_URL = 'https://play.google.com/store/apps/details?id=com.cotaja_rn';
 

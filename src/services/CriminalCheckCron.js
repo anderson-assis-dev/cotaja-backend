@@ -10,8 +10,8 @@ class CriminalCheckCron {
     this.rateLimitedUntil = null;
   }
 
-  start(intervalMs = 5 * 60 * 60 * 1000) {
-    console.log('[CriminalCheckCron] Iniciado (intervalo: 5h)');
+  start(intervalMs = 24 * 60 * 60 * 1000) {
+    console.log('[CriminalCheckCron] Iniciado (intervalo: 24h)');
     this.intervalId = setInterval(() => this.run(), intervalMs);
     setTimeout(() => this.run(), 30000);
   }
@@ -54,6 +54,7 @@ class CriminalCheckCron {
            AND mother_name IS NOT NULL
            AND mother_name != ''
            AND birth_date IS NOT NULL
+           AND TIMESTAMPDIFF(YEAR, birth_date, CURDATE()) < 50
          ORDER BY created_at ASC
          LIMIT 5`
       );

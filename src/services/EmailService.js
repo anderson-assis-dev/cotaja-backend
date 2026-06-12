@@ -323,7 +323,7 @@ class EmailService {
             preheader: `${clientName} solicitou um orçamento`,
             bodyHtml,
             ctaText: 'Responder no app',
-            ctaUrl: 'https://cotaja.io/orders',
+            ctaUrl: 'https://app.cotaja.io/orders',
             recipientEmail: provider?.email,
         });
 
@@ -441,7 +441,7 @@ class EmailService {
             accent: '#ef4444',
             bodyHtml,
             ctaText: 'Acessar Plataforma',
-            ctaUrl: 'https://cotaja.io',
+            ctaUrl: 'https://app.cotaja.io/orders',
             recipientEmail: recipient?.email,
         });
     }
@@ -466,7 +466,7 @@ class EmailService {
             accent: '#10b981',
             bodyHtml,
             ctaText: 'Ver no app',
-            ctaUrl: 'https://cotaja.io/orders',
+            ctaUrl: 'https://app.cotaja.io/orders',
             recipientEmail: recipient?.email,
         });
     }
@@ -491,7 +491,7 @@ class EmailService {
             accent: '#f59e0b',
             bodyHtml,
             ctaText: 'Ver no app',
-            ctaUrl: 'https://cotaja.io/orders',
+            ctaUrl: 'https://app.cotaja.io/orders',
             recipientEmail: recipient?.email,
         });
     }
@@ -514,7 +514,7 @@ class EmailService {
             accent: '#ef4444',
             bodyHtml,
             ctaText: 'Ver Pedidos Disponíveis',
-            ctaUrl: 'https://cotaja.io/orders',
+            ctaUrl: 'https://app.cotaja.io/orders',
             recipientEmail: provider?.email,
         });
     }

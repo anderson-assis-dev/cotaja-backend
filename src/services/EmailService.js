@@ -831,6 +831,85 @@ class EmailService {
 </html>
         `.trim();
     }
+
+    getWebWelcomeDownloadAppTemplate(name, profileType) {
+        const playStoreUrl = 'https://play.google.com/store/apps/details?id=com.cotaja_rn';
+        const appStoreUrl = 'https://apps.apple.com/br/app/cotaja/id6753153412';
+        const isProvider = profileType === 'provider';
+        const headline = isProvider
+            ? 'Receba pedidos e cresça no CotaJá'
+            : 'Encontre profissionais perto de você';
+        const intro = isProvider
+            ? 'Sua conta de prestador foi criada com sucesso. Baixe o app para receber pedidos, enviar propostas e gerenciar tudo pelo celular.'
+            : 'Sua conta foi criada com sucesso. Baixe o app para criar pedidos, receber propostas e acompanhar tudo em tempo real.';
+        const benefits = isProvider
+            ? [
+                'Receba pedidos de clientes da sua região',
+                'Envie propostas e aumente seu faturamento',
+                'Gerencie propostas e conversas no celular',
+                'Construa reputação com avaliações verificadas',
+                'Plano premium com 3 meses grátis para novos prestadores',
+            ]
+            : [
+                'Crie pedidos de serviço em menos de 2 minutos',
+                'Receba propostas de vários profissionais qualificados',
+                'Compare preços, prazos e avaliações',
+                'Acompanhe o andamento do serviço pelo app',
+                'Receba alertas quando chegar nova proposta',
+            ];
+        const benefitsHtml = benefits.map((item) => (
+            `<tr><td style="padding:0 0 10px 0;color:#4b5563;font-size:15px;line-height:1.5;">✓ ${item}</td></tr>`
+        )).join('');
+        return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,sans-serif;">
+<table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f4f4f4;padding:20px 0;">
+  <tr><td align="center">
+    <table cellpadding="0" cellspacing="0" border="0" width="600" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+      <tr><td style="background-color:#ffffff;padding:36px 40px 26px 40px;text-align:center;border-bottom:3px solid #4f46e5;">
+        <img src="cid:cotaja-logo" alt="Cotaja" style="max-width:220px;height:auto;display:block;margin:0 auto;" />
+      </td></tr>
+      <tr><td style="padding:36px 40px 10px 40px;">
+        <h2 style="margin:0 0 16px 0;color:#4f46e5;font-size:22px;text-align:center;">${headline}</h2>
+        <p style="margin:0 0 12px 0;color:#4b5563;font-size:15px;line-height:1.6;">Olá, <strong>${name || 'Olá'}</strong>!</p>
+        <p style="margin:0 0 20px 0;color:#4b5563;font-size:15px;line-height:1.6;">${intro}</p>
+        <p style="margin:0 0 12px 0;color:#1f2937;font-size:16px;font-weight:bold;">No app você pode:</p>
+        <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 24px 0;">${benefitsHtml}</table>
+        <p style="margin:0 0 16px 0;color:#4b5563;font-size:15px;line-height:1.6;text-align:center;">Baixe grátis na loja do seu celular:</p>
+        <table cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td align="center" style="padding:0 0 28px 0;">
+          <a href="${playStoreUrl}" style="display:inline-block;padding:13px 24px;background-color:#16a34a;color:#ffffff;text-decoration:none;border-radius:6px;font-size:14px;font-weight:bold;margin:0 6px 8px 6px;">Google Play</a>
+          <a href="${appStoreUrl}" style="display:inline-block;padding:13px 24px;background-color:#111827;color:#ffffff;text-decoration:none;border-radius:6px;font-size:14px;font-weight:bold;margin:0 6px 8px 6px;">App Store</a>
+        </td></tr></table>
+        <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.5;text-align:center;">Use o mesmo e-mail e senha do cadastro para entrar no app.</p>
+      </td></tr>
+      <tr><td style="padding:0 40px 28px 40px;">
+        <p style="margin:0;color:#4b5563;font-size:15px;">Atenciosamente,</p>
+        <p style="margin:4px 0 0;color:#4f46e5;font-size:15px;font-weight:bold;">Equipe Cotaja</p>
+      </td></tr>
+      <tr><td style="background-color:#1f2937;padding:26px 40px;text-align:center;">
+        <p style="margin:0 0 6px 0;color:#ffffff;font-size:13px;font-weight:bold;">COTAJA</p>
+        <p style="margin:0;color:#9ca3af;font-size:12px;">contato@cotaja.io · www.cotaja.io</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body></html>`.trim();
+    }
+
+    async sendWebWelcomeDownloadApp(user) {
+        const subject = user.profile_type === 'provider'
+            ? 'Baixe o app CotaJá e comece a receber pedidos'
+            : 'Baixe o app CotaJá e crie seu primeiro pedido';
+        const html = this.getWebWelcomeDownloadAppTemplate(user.name, user.profile_type);
+        await this.transporter.sendMail({
+            from: `"${process.env.MAIL_FROM_NAME || 'Cotaja'}" <${process.env.MAIL_FROM_ADDRESS || process.env.MAIL_USERNAME || process.env.MAIL_USER}>`,
+            to: user.email,
+            subject,
+            html,
+            attachments: [{ filename: 'logo.png', path: path.join(__dirname, '../../assets/images/logo.png'), cid: 'cotaja-logo' }],
+        });
+        console.log(`📧 [WebWelcome] "${subject}" → ${user.email}`);
+        return { success: true };
+    }
 }
 
 module.exports = new EmailService();

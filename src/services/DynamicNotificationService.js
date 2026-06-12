@@ -43,6 +43,7 @@ const COOLDOWNS = {
     provider_no_accepted_month:       10,
     provider_unused_credits:          7,
     provider_profile_incomplete:      1,
+    web_welcome_download_app:         1,
 };
 
 class DynamicNotificationService {
@@ -573,6 +574,31 @@ class DynamicNotificationService {
             console.log(`[DynNotif] provider_unused_credits: ${sent}/${rows.length} enviados`);
     }
 
+    async checkWebUserWelcomeDownloadApp() {
+        const [rows] = await pool.execute(
+            `SELECT id, name, email, profile_type
+             FROM users
+             WHERE deleted_at IS NULL
+               AND activate = 1
+               AND email NOT LIKE 'deleted_%@deleted.invalid'
+               AND (fcm_token IS NULL OR fcm_token = '')
+               AND created_at <= DATE_SUB(NOW(), INTERVAL 2 HOUR)`
+        );
+        let sent = 0;
+        for (const row of rows) {
+            if (await this._wasRecentlySent(row.id, 'web_welcome_download_app')) continue;
+            try {
+                await emailService.sendWebWelcomeDownloadApp(row);
+                await this._logSent(row.id, 'web_welcome_download_app');
+                sent++;
+                console.log(`[DynNotif] ✅ web_welcome_download_app → user ${row.id} (${row.email})`);
+            } catch (err) {
+                console.error(`[DynNotif] Erro email (web_welcome_download_app) user ${row.id}:`, err.message);
+            }
+        }
+        console.log(`[DynNotif] web_welcome_download_app: ${sent}/${rows.length} enviados`);
+    }
+
     async runAll() {
         console.log('[DynNotif] 🔁 Iniciando ciclo de notificações dinâmicas...');
         const start = Date.now();
@@ -594,6 +620,7 @@ class DynamicNotificationService {
             this.checkProviderNoAcceptedProposalThisMonth(),
             this.checkProviderUnusedAdCredits(),
             this.checkProviderProfileIncomplete(),
+            this.checkWebUserWelcomeDownloadApp(),
         ]);
 
         results.forEach((r, i) => {

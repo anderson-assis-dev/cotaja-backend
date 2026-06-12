@@ -687,6 +687,34 @@ class AuthController {
         }
     }
 
+    async updateNotificationPreferences(req, res) {
+        try {
+            const { email_notifications } = req.body;
+            if (typeof email_notifications !== 'boolean') {
+                return res.status(422).json({
+                    success: false,
+                    message: 'O campo email_notifications (boolean) é obrigatório',
+                });
+            }
+
+            // email_notifications=true  -> usuário QUER receber (unsubscribed = 0)
+            // email_notifications=false -> usuário NÃO quer (unsubscribed = 1)
+            const updatedUser = await req.user.update({ email_unsubscribed: email_notifications ? 0 : 1 });
+
+            return res.json({
+                success: true,
+                message: 'Preferências de notificação atualizadas',
+                data: { user: updatedUser.toJSON() },
+            });
+        } catch (error) {
+            console.error('Erro ao atualizar preferências de notificação:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Erro interno do servidor',
+            });
+        }
+    }
+
     async saveFcmToken(req, res) {
         try {
             const { fcm_token, device_platform } = req.body;

@@ -2,6 +2,7 @@ const { pool } = require('../config/database');
 const PushNotificationService = require('./PushNotificationService');
 const Notification = require('../models/Notification');
 const emailService = require('./EmailService');
+const { buildDeepLink, buildHttpsLink } = require('../controllers/DeepLinkController');
 
 const DAILY_CAP = 2;
 
@@ -23,7 +24,7 @@ const EMAIL_TRIGGERS = {
     client_proposal_about_to_expire:   { subject: 'Suas propostas vencem em breve!', cta: 'Ver propostas agora', screen: 'order' },
     client_pending_rating:             { subject: 'Avalie o profissional do seu serviço ⭐', cta: 'Avaliar profissional', screen: 'rate' },
     client_order_completed_no_reorder: { subject: 'Precisa de um profissional novamente?', cta: 'Criar novo pedido', screen: 'new-order' },
-    provider_profile_incomplete:       { subject: 'Complete seu perfil e atraia mais clientes', cta: 'Completar perfil', screen: 'profile' },
+    provider_profile_incomplete:       { subject: 'Complete seu perfil e atraia mais clientes', cta: 'Adicionar serviço', screen: 'add-service' },
 };
 
 const COOLDOWNS = {
@@ -72,6 +73,19 @@ class DynamicNotificationService {
         return rows.length > 0;
     }
 
+    async _isEmailUnsubscribed(userId) {
+        try {
+            const [rows] = await pool.execute(
+                'SELECT email_unsubscribed FROM users WHERE id = ? LIMIT 1',
+                [userId]
+            );
+            return rows.length > 0 && Number(rows[0].email_unsubscribed) === 1;
+        } catch (err) {
+            // Coluna ainda não migrada ou erro: não bloqueia o envio.
+            return false;
+        }
+    }
+
     async _logSent(userId, triggerType) {
         await pool.execute(
             `INSERT INTO notification_sent_log (user_id, trigger_type, sent_at)
@@ -86,12 +100,18 @@ class DynamicNotificationService {
         // Marketing triggers respeitam o cap diário; transacionais passam sempre
         if (MARKETING_TRIGGERS.has(triggerType) && await this._isDailyCapReached(user.id)) return false;
 
+        // Deep link de destino: usa o campo `screen` quando presente; senão, se há
+        // um order_id, abre o detalhe do pedido.
+        const deeplink = data.screen
+            ? buildDeepLink(data.screen, data.order_id)
+            : (data.order_id ? buildDeepLink('order', data.order_id) : null);
+
         await Notification.create({
             user_id: user.id,
             type: triggerType,
             title,
             message,
-            data,
+            data: deeplink ? { ...data, deeplink } : data,
         }).catch(err => console.error(`[DynNotif] Erro DB (${triggerType}):`, err.message));
 
         if (user.fcm_token) {
@@ -101,15 +121,13 @@ class DynamicNotificationService {
                 title,
                 message,
                 sound: 'default',
-                extra_data: { type: triggerType, ...data },
+                extra_data: { type: triggerType, ...data, ...(deeplink ? { deeplink } : {}) },
             }).catch(err => console.error(`[DynNotif] Erro push (${triggerType}) user ${user.id}:`, err.message));
         }
 
         const emailConfig = EMAIL_TRIGGERS[triggerType];
-        if (emailConfig && user.email) {
-            const baseUrl = process.env.APP_URL || 'https://api.cotaja.io';
-            let ctaUrl = `${baseUrl}/open?screen=${emailConfig.screen}`;
-            if (data.order_id) ctaUrl += `&id=${data.order_id}`;
+        if (emailConfig && user.email && !(await this._isEmailUnsubscribed(user.id))) {
+            const ctaUrl = buildHttpsLink(emailConfig.screen, data.order_id);
 
             await emailService.sendGenericNotification(
                 user,
@@ -256,7 +274,7 @@ class DynamicNotificationService {
                 const ok = await this._send(row, 'client_pending_rating',
                     'Como foi o serviço? ⭐',
                     `Avalie o profissional de "${row.title}" e ajude outros clientes a escolher bem.`,
-                    { order_id: String(row.order_id) }
+                    { order_id: String(row.order_id), screen: 'rate' }
                 );
                 if (ok) sent++;
             }
@@ -473,7 +491,7 @@ class DynamicNotificationService {
                 const ok = await this._send(row, 'provider_profile_incomplete',
                     'Seu perfil está incompleto! 📝',
                     `Adicione ${missingText} para transmitir mais confiança e atrair mais clientes.`,
-                    { screen: 'profile' }
+                    { screen: 'add-service' }
                 );
                 if (ok) sent++;
             }
@@ -587,6 +605,7 @@ class DynamicNotificationService {
         let sent = 0;
         for (const row of rows) {
             if (await this._wasRecentlySent(row.id, 'web_welcome_download_app')) continue;
+            if (await this._isEmailUnsubscribed(row.id)) continue;
             try {
                 await emailService.sendWebWelcomeDownloadApp(row);
                 await this._logSent(row.id, 'web_welcome_download_app');

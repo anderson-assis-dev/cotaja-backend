@@ -21,6 +21,7 @@ router.get('/me', authenticateToken, authController.me);
 router.put('/profile', authenticateToken, updateProfileValidation, authController.updateProfile);
 router.put('/profile-type', authenticateToken, updateProfileTypeValidation, authController.updateProfileType);
 router.post('/fcm-token', authenticateToken, fcmTokenValidation, authController.saveFcmToken);
+router.put('/notification-preferences', authenticateToken, authController.updateNotificationPreferences.bind(authController));
 router.put('/avatar', authenticateToken, authController.updateAvatar);
 router.post('/request-otp', authenticateToken, authController.requestOtp.bind(authController));
 router.post('/change-password', authenticateToken, authController.changePasswordWithOtp.bind(authController));

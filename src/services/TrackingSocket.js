@@ -2,6 +2,7 @@ const { verifyToken } = require('../utils/jwt');
 const { pool } = require('../config/database');
 const PushNotificationService = require('./PushNotificationService');
 const appleMapsService = require('./AppleMapsService');
+const { buildDeepLink } = require('./../controllers/DeepLinkController');
 
 const trackingRooms = new Map();
 const pushService = new PushNotificationService();
@@ -165,6 +166,7 @@ function setupTrackingSocket(io) {
             extra_data: {
               type: 'tracking_started',
               order_id: String(orderData.id),
+              deeplink: buildDeepLink('tracking', orderData.id),
             },
           });
           console.log(`[Tracking WS] Push enviado para cliente ${orderData.client_id}`);

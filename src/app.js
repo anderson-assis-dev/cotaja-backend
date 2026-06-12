@@ -56,8 +56,25 @@ app.use('/api', routes);
 
 app.use('/', routes);
 
-const { open: deepLinkOpen } = require('./controllers/DeepLinkController');
+const { open: deepLinkOpen, redirect: deepLinkRedirect } = require('./controllers/DeepLinkController');
 app.get('/open', deepLinkOpen);
+
+// Rotas amigáveis (universal links via redirecionamento): /new-service, /order/123, etc.
+// Cada uma renderiza a página que abre o deep link `cotaja://...` correspondente.
+const DEEP_LINK_NO_ID = ['new-service', 'add-service', 'new-order', 'novo-pedido', 'orders', 'wallet', 'carteira', 'profile', 'perfil'];
+const DEEP_LINK_WITH_ID = ['order', 'rate', 'chat', 'tracking'];
+
+DEEP_LINK_NO_ID.forEach((screen) => {
+    app.get(`/${screen}`, (req, res) => { req.params.screen = screen; deepLinkRedirect(req, res); });
+});
+DEEP_LINK_WITH_ID.forEach((screen) => {
+    app.get(`/${screen}/:id`, (req, res) => { req.params.screen = screen; deepLinkRedirect(req, res); });
+});
+
+// Cancelamento de inscrição dos e-mails (link no rodapé de todos os e-mails).
+const { unsubscribe, resubscribe } = require('./controllers/UnsubscribeController');
+app.get('/unsubscribe', unsubscribe);
+app.get('/resubscribe', resubscribe);
 
 app.get('/', (req, res) => {
     res.json({

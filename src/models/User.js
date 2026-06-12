@@ -40,6 +40,7 @@ class User {
         this.security_code = data.security_code || null;
         this.fcm_token = data.fcm_token || null;
         this.device_platform = data.device_platform || null;
+        this.email_unsubscribed = data.email_unsubscribed !== undefined ? data.email_unsubscribed : 0;
         this.password = data.password || null;
         this.email_verified_at = data.email_verified_at || null;
         this.remember_token = data.remember_token || null;

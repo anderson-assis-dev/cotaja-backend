@@ -1,6 +1,7 @@
 const Notification = require('../models/Notification');
 const User = require('../models/User');
 const PushNotificationService = require('./PushNotificationService');
+const { buildDeepLink } = require('../controllers/DeepLinkController');
 
 class NotificationService {
     constructor() {
@@ -57,7 +58,8 @@ class NotificationService {
                             order_id: order.id,
                             order_title: order.title,
                             order_category: order.category,
-                            order_budget: order.budget
+                            order_budget: order.budget,
+                            deeplink: buildDeepLink('order', order.id)
                         }
                     }
                 ).then(pushResults => {
@@ -114,7 +116,12 @@ class NotificationService {
                         device: client.device_platform || 'ios',
                         title: pushTitle,
                         message: pushMessage,
-                        sound: 'default'
+                        sound: 'default',
+                        extra_data: {
+                            type: 'new_proposal',
+                            order_id: proposal.order_id,
+                            deeplink: buildDeepLink('order', proposal.order_id)
+                        }
                     });
 
                     console.log(`✅ Push notification enviada para cliente ${client.name}`);
@@ -166,7 +173,12 @@ class NotificationService {
                         device: provider.device_platform || 'ios',
                         title: pushTitle,
                         message: pushMessage,
-                        sound: 'default'
+                        sound: 'default',
+                        extra_data: {
+                            type: 'proposal_accepted',
+                            order_id: proposal.order_id,
+                            deeplink: buildDeepLink('order', proposal.order_id)
+                        }
                     });
 
                     console.log(`✅ Push notification de proposta aceita enviada para ${provider.name}`);
@@ -236,7 +248,12 @@ class NotificationService {
                         device: provider.device_platform || 'ios',
                         title: 'Aceitação cancelada',
                         message: `O cliente cancelou a aceitação para "${proposal.order.title}". Sua proposta continua disponível.`,
-                        sound: 'default'
+                        sound: 'default',
+                        extra_data: {
+                            type: 'acceptance_cancelled',
+                            order_id: proposal.order_id,
+                            deeplink: buildDeepLink('order', proposal.order_id)
+                        }
                     });
                 }
             } catch (pushError) {

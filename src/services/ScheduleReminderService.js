@@ -2,6 +2,7 @@ const { pool } = require('../config/database');
 const User = require('../models/User');
 const PushNotificationService = require('./PushNotificationService');
 const emailService = require('./EmailService');
+const { buildDeepLink } = require('../controllers/DeepLinkController');
 const moment = require('moment');
 
 class ScheduleReminderService {
@@ -98,9 +99,10 @@ class ScheduleReminderService {
                             title: `Lembrete de Serviço`,
                             message: `O serviço "${order.title}" está agendado para ${timeLabel} (${formattedDate})`,
                             sound: 'default',
-                            data: {
+                            extra_data: {
                                 type: 'schedule_reminder',
                                 order_id: String(order.id),
+                                deeplink: buildDeepLink('chat', order.id),
                             },
                         });
                     }

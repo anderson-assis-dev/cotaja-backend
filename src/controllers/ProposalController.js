@@ -4,6 +4,7 @@ const User = require('../models/User');
 const ProfileView = require('../models/ProfileView');
 const notificationService = require('../services/NotificationService');
 const emailService = require('../services/EmailService');
+const { buildHttpsLink } = require('./DeepLinkController');
 const { pool } = require('../config/database');
 const nodemailer = require('nodemailer');
 
@@ -172,7 +173,7 @@ class ProposalController {
                     const provider = await User.findById(user.id);
 
                     if (client && provider) {
-                        await emailService.sendNewProposalToClient(order, proposal, client, provider);
+                        await emailService.sendNewProposalToClient(order, proposal, client, provider, buildHttpsLink('order', order.id));
                     }
                 } catch (error) {
                     console.error('❌ Erro ao enviar e-mail de proposta (background):', error.message);
@@ -474,7 +475,7 @@ class ProposalController {
                     const client = await User.findById(updatedProposal.order.client_id);
                     const provider = await User.findById(user.id);
                     if (client && provider) {
-                        await emailService.sendNewProposalToClient(updatedProposal.order, updatedProposal, client, provider);
+                        await emailService.sendNewProposalToClient(updatedProposal.order, updatedProposal, client, provider, buildHttpsLink('order', updatedProposal.order.id));
                     }
                 } catch (error) {
                     console.error('Erro ao enviar e-mail de proposta atualizada (background):', error.message);
@@ -566,7 +567,8 @@ class ProposalController {
                             await emailService.sendProposalAcceptedToProvider(
                                 updatedProposal.order || proposal.order,
                                 updatedProposal,
-                                provider
+                                provider,
+                                buildHttpsLink('order', (updatedProposal.order || proposal.order).id)
                             );
                         }
                     } catch (error) {

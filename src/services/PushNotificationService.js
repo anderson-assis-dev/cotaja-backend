@@ -366,7 +366,7 @@ class PushNotificationService {
                 sound: options.sound || 'default',
                 image_url: options.image_url,
                 production: true,
-                ...options.data
+                extra_data: options.data
             }).then(result => {
                 console.log(`   ✅ Sucesso para ${device.name}`);
                 return { device_id: device.id, success: true, result };

@@ -1,17 +1,61 @@
-const SCREEN_MAP = {
-    'new-order': () => 'new-order',
-    'order':     (id) => id ? `order/${id}` : 'new-order',
-    'rate':      (id) => id ? `rate/${id}`  : 'new-order',
-    'profile':   () => 'profile',
-};
+/**
+ * Deep Link / Universal Link redirector.
+ *
+ * Fonte única de verdade para o mapeamento entre "telas lógicas" e os deep links
+ * do app (`cotaja://...`). Usado em 3 lugares:
+ *   1. Payload das push notifications (campo `data.deeplink`).
+ *   2. Links de call-to-action nos e-mails (URL https://cotaja.io/... -> redireciona).
+ *   3. Página de redirecionamento que abre o app (ou cai para a loja).
+ *
+ * Estratégia (sem AASA/assetlinks nativos): o e-mail aponta para uma URL https
+ * amigável (ex.: https://cotaja.io/new-service). O backend responde com uma
+ * página que tenta abrir `cotaja://add-service`; se o app não estiver instalado,
+ * cai para a App Store / Play Store.
+ */
 
+// Domínio que SERVE o backend (rotas redirecionadoras /new-service, /order/:id...).
+// Os CTAs dos e-mails apontam para cá para que o backend abra o deep link do app.
+const APP_BASE_URL = process.env.APP_URL || 'https://api.cotaja.io';
 const IOS_URL     = 'https://apps.apple.com/app/id6740817289';
 const ANDROID_URL = 'https://play.google.com/store/apps/details?id=com.cotaja_rn';
 
+// screen lógico -> função que monta o PATH do deep link (sem o scheme).
+// Aceita tanto os códigos usados no DynamicNotificationService (ex.: 'new_order')
+// quanto os caminhos amigáveis dos e-mails (ex.: 'new-service').
+const SCREEN_MAP = {
+    'new-order':   () => 'new-order',
+    'new_order':   () => 'new-order',
+    'novo-pedido': () => 'new-order',
+
+    'new-service': () => 'add-service',
+    'add-service': () => 'add-service',
+    'add_service': () => 'add-service',
+    'meus-servicos': () => 'add-service',
+
+    'order':   (id) => (id ? `order/${id}`   : 'new-order'),
+    'rate':    (id) => (id ? `rate/${id}`    : 'new-order'),
+    'chat':    (id) => (id ? `chat/${id}`    : 'orders'),
+    'tracking':(id) => (id ? `tracking/${id}`: 'orders'),
+
+    'orders':  () => 'orders',
+    'wallet':  () => 'wallet',
+    'carteira':() => 'wallet',
+    'profile': () => 'profile',
+    'perfil':  () => 'profile',
+};
+
+/** Monta o deep link completo `cotaja://<path>` a partir de um screen lógico. */
 function buildDeepLink(screen, id) {
     const resolver = SCREEN_MAP[screen];
     const path = resolver ? resolver(id) : '';
     return `cotaja://${path}`;
+}
+
+/** Monta a URL https amigável (para usar como CTA em e-mails). */
+function buildHttpsLink(screen, id) {
+    const resolver = SCREEN_MAP[screen];
+    const path = resolver ? resolver(id) : '';
+    return `${APP_BASE_URL}/${path}`;
 }
 
 function renderRedirectPage(deepLink) {
@@ -59,6 +103,7 @@ function renderRedirectPage(deepLink) {
 </html>`;
 }
 
+/** Rota legada: /open?screen=order&id=123 */
 function open(req, res) {
     const screen   = String(req.query.screen || '');
     const id       = req.query.id ? String(req.query.id) : null;
@@ -68,4 +113,17 @@ function open(req, res) {
     res.send(renderRedirectPage(deepLink));
 }
 
-module.exports = { open };
+/**
+ * Rota amigável: /new-service, /order/123, /rate/45, /profile, etc.
+ * Converte o path recebido no deep link e renderiza a página de redirecionamento.
+ */
+function redirect(req, res) {
+    const screen = String(req.params.screen || '');
+    const id     = req.params.id ? String(req.params.id) : null;
+    const deepLink = buildDeepLink(screen, id);
+
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.send(renderRedirectPage(deepLink));
+}
+
+module.exports = { open, redirect, buildDeepLink, buildHttpsLink };

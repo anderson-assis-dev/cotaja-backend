@@ -31,7 +31,7 @@ async function sendWelcomeEmail(user, activationToken) {
 
         console.log('📧 Enviando email de boas-vindas para:', user.email);
 
-        const serverUrl = process.env.SERVER_URL || 'http://159.195.32.169:53000';
+        const serverUrl = process.env.SERVER_URL || 'https://app.cotaja.io';
         const activationLink = `${serverUrl}/api/auth/activate/${activationToken}`;
 
         await transporter.sendMail({

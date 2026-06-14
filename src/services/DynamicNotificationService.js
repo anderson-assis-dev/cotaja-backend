@@ -17,14 +17,41 @@ const MARKETING_TRIGGERS = new Set([
     'provider_unused_credits',
     'provider_profile_incomplete',
     'client_order_completed_no_reorder',
+    'client_order_cancelled_recovery',
+    'client_seasonal_reactivation',
+    'client_become_affiliate',
+    'client_onboarding_d1',
+    'client_onboarding_d3',
+    'client_onboarding_d7',
 ]);
 
+// Todos os gatilhos enviam push (quando há fcm_token) E e-mail. O `screen` define o
+// destino do CTA; `url` (opcional) sobrepõe o link para um endereço externo.
 const EMAIL_TRIGGERS = {
+    client_open_order_48h:             { subject: 'Seu pedido ainda não recebeu propostas', cta: 'Ver meu pedido', screen: 'order' },
+    client_unread_proposal_24h:        { subject: 'Você tem propostas esperando! 🔔', cta: 'Ver propostas', screen: 'order' },
+    client_inactive_7d:                { subject: 'Está precisando de ajuda?', cta: 'Criar pedido', screen: 'new-order' },
+    client_inactive_30d:               { subject: 'Faz tempo que não te vemos!', cta: 'Criar pedido', screen: 'new-order' },
+    client_pending_rating:             { subject: 'Avalie o profissional do seu serviço ⭐', cta: 'Avaliar profissional', screen: 'rate' },
     client_welcome_first_order:        { subject: 'Bem-vindo à Cotaja! Crie seu primeiro pedido', cta: 'Criar meu primeiro pedido', screen: 'new-order' },
     client_proposal_about_to_expire:   { subject: 'Suas propostas vencem em breve!', cta: 'Ver propostas agora', screen: 'order' },
-    client_pending_rating:             { subject: 'Avalie o profissional do seu serviço ⭐', cta: 'Avaliar profissional', screen: 'rate' },
+    client_proposal_expiring:          { subject: 'Como está andando seu serviço?', cta: 'Ver pedido', screen: 'order' },
     client_order_completed_no_reorder: { subject: 'Precisa de um profissional novamente?', cta: 'Criar novo pedido', screen: 'new-order' },
+    client_daily_inspire:              { subject: 'Resolva aquele serviço hoje no CotaJá', cta: 'Criar pedido', screen: 'new-order' },
+    client_order_cancelled_recovery:   { subject: 'Mudou de ideia? Vamos resolver', cta: 'Recriar pedido', screen: 'new-order' },
+    client_seasonal_reactivation:      { subject: 'Que tal resolver aquele serviço?', cta: 'Ver profissionais', screen: 'new-order' },
+    client_better_proposal:            { subject: 'Chegou uma proposta mais barata! 💰', cta: 'Ver proposta', screen: 'order' },
+    client_unread_chat_message:        { subject: 'Você tem mensagens não lidas 💬', cta: 'Abrir conversa', screen: 'chat' },
+    client_become_affiliate:           { subject: 'Indique o CotaJá e ganhe dinheiro', cta: 'Quero indicar', url: 'https://cotaja.io/afiliados' },
+    client_onboarding_d1:              { subject: 'Bem-vindo ao CotaJá! Seus primeiros passos', cta: 'Começar agora', screen: 'new-order' },
+    client_onboarding_d3:              { subject: 'Crie seu primeiro pedido em 2 minutos', cta: 'Criar pedido', screen: 'new-order' },
+    client_onboarding_d7:              { subject: 'Contrate com segurança no CotaJá', cta: 'Explorar o app', screen: 'new-order' },
     provider_profile_incomplete:       { subject: 'Complete seu perfil e atraia mais clientes', cta: 'Adicionar serviço', screen: 'add-service' },
+    provider_daily_grow:               { subject: 'Novos pedidos te aguardam no CotaJá', cta: 'Ver pedidos', screen: 'orders' },
+    provider_no_ad_3d:                 { subject: 'Atraia mais clientes com Cotaja Ads', cta: 'Criar anúncio', screen: 'wallet' },
+    provider_proposal_pending_5d:      { subject: 'Destaque-se da concorrência', cta: 'Anunciar agora', screen: 'wallet' },
+    provider_no_accepted_month:        { subject: 'Clientes estão te buscando', cta: 'Conhecer planos', screen: 'wallet' },
+    provider_unused_credits:           { subject: 'Você tem créditos de anúncio parados', cta: 'Programar anúncio', screen: 'wallet' },
 };
 
 const COOLDOWNS = {
@@ -45,6 +72,14 @@ const COOLDOWNS = {
     provider_unused_credits:          7,
     provider_profile_incomplete:      1,
     web_welcome_download_app:         1,
+    client_order_cancelled_recovery:  7,
+    client_seasonal_reactivation:     30,
+    client_better_proposal:           1,
+    client_unread_chat_message:       1,
+    client_become_affiliate:          30,
+    client_onboarding_d1:             30,
+    client_onboarding_d3:             30,
+    client_onboarding_d7:             30,
 };
 
 class DynamicNotificationService {
@@ -127,7 +162,7 @@ class DynamicNotificationService {
 
         const emailConfig = EMAIL_TRIGGERS[triggerType];
         if (emailConfig && user.email && !(await this._isEmailUnsubscribed(user.id))) {
-            const ctaUrl = buildHttpsLink(emailConfig.screen, data.order_id);
+            const ctaUrl = emailConfig.url || buildHttpsLink(emailConfig.screen, data.order_id);
 
             await emailService.sendGenericNotification(
                 user,
@@ -618,6 +653,197 @@ class DynamicNotificationService {
         console.log(`[DynNotif] web_welcome_download_app: ${sent}/${rows.length} enviados`);
     }
 
+    async checkClientOrderCancelledRecovery() {
+        const [rows] = await pool.execute(
+                `SELECT u.id, u.name, u.email, u.fcm_token, u.device_platform,
+                        o.id AS order_id, o.title
+                 FROM orders o
+                 JOIN users u ON u.id = o.client_id
+                 WHERE o.status = 'cancelled'
+                   AND o.updated_at <= DATE_SUB(NOW(), INTERVAL 1 DAY)
+                   AND o.updated_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                   AND u.deleted_at IS NULL
+                   AND u.fcm_token IS NOT NULL AND u.fcm_token != ''
+                   AND NOT EXISTS (
+                       SELECT 1 FROM orders o2
+                       WHERE o2.client_id = u.id
+                         AND o2.status IN ('open', 'in_progress')
+                         AND o2.created_at > o.updated_at
+                   )
+                 GROUP BY u.id, o.id, o.title`
+            );
+            let sent = 0;
+            for (const row of rows) {
+                const ok = await this._send(row, 'client_order_cancelled_recovery',
+                    'Mudou de ideia? Vamos resolver! 🔄',
+                    `Seu pedido "${row.title}" foi cancelado. Que tal recriá-lo e receber novas propostas de profissionais?`,
+                    { screen: 'new_order' }
+                );
+                if (ok) sent++;
+            }
+            console.log(`[DynNotif] client_order_cancelled_recovery: ${sent}/${rows.length} enviados`);
+    }
+
+    async checkClientSeasonalReactivation() {
+        const [rows] = await pool.execute(
+                `SELECT id, name, email, fcm_token, device_platform
+                 FROM users
+                 WHERE profile_type = 'client'
+                   AND deleted_at IS NULL
+                   AND email NOT LIKE 'deleted_%@deleted.invalid'
+                   AND (
+                       last_active IS NULL AND created_at <= DATE_SUB(NOW(), INTERVAL 14 DAY)
+                       OR last_active <= DATE_SUB(NOW(), INTERVAL 14 DAY)
+                   )`
+            );
+            const seasonal = [
+                { title: 'Comece o ano com a casa em ordem 🏠', body: 'Janeiro é a época perfeita para organizar e reformar. Encontre profissionais para o que precisar!' },
+                { title: 'Prepare sua casa para o Carnaval 🎉', body: 'Antes da folia, deixe tudo pronto: limpeza, reparos e muito mais com profissionais do CotaJá.' },
+                { title: 'Outono chegou: hora da manutenção 🍂', body: 'Aproveite o clima ameno para reparos e melhorias. Receba orçamentos gratuitos no CotaJá.' },
+                { title: 'Renove seu espaço neste mês 🌿', body: 'Pintura, jardinagem ou aquela reforma adiada? Profissionais qualificados estão a um clique.' },
+                { title: 'Prepare-se para o frio ❄️', body: 'Revisão de aquecedores, isolamento e manutenção. Encontre quem resolve no CotaJá.' },
+                { title: 'Festas juninas e a casa cheia? 🎪', body: 'Deixe tudo pronto para receber. Limpeza, decoração e reparos com profissionais avaliados.' },
+                { title: 'Aproveite as férias para reformar 🛠️', body: 'Julho é mês de colocar a casa em dia. Receba propostas competitivas no CotaJá.' },
+                { title: 'Manutenção do ar antes do calor ☀️', body: 'A primavera está chegando! Faça a revisão do ar-condicionado com profissionais de confiança.' },
+                { title: 'Primavera: hora de renovar 🌷', body: 'Jardinagem, pintura e aquela repaginada na casa. Encontre profissionais perto de você.' },
+                { title: 'Prepare a casa para as festas 🎄', body: 'Decoração, limpeza pesada e reparos de fim de ano. Garanta tudo pronto com o CotaJá.' },
+                { title: 'Reta final do ano: resolva pendências 📋', body: 'Aquele serviço que ficou para depois? Ainda dá tempo! Receba orçamentos agora.' },
+                { title: 'Casa pronta para o Natal e Ano Novo 🎁', body: 'Receba bem quem você ama. Limpeza, reformas e decoração com profissionais do CotaJá.' },
+            ];
+            const { title, body } = seasonal[new Date().getMonth()];
+            let sent = 0;
+            for (const row of rows) {
+                const ok = await this._send(row, 'client_seasonal_reactivation', title, body, { screen: 'new_order' });
+                if (ok) sent++;
+            }
+            console.log(`[DynNotif] client_seasonal_reactivation: ${sent}/${rows.length} enviados`);
+    }
+
+    async checkClientBetterProposal() {
+        const [rows] = await pool.execute(
+                `SELECT u.id, u.name, u.email, u.fcm_token, u.device_platform,
+                        o.id AS order_id, o.title, np.price AS new_price
+                 FROM orders o
+                 JOIN users u ON u.id = o.client_id
+                 JOIN proposals np ON np.order_id = o.id AND np.status = 'pending'
+                 WHERE o.status = 'open'
+                   AND u.deleted_at IS NULL
+                   AND u.fcm_token IS NOT NULL AND u.fcm_token != ''
+                   AND np.created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+                   AND np.created_at = (
+                       SELECT MAX(p3.created_at) FROM proposals p3
+                       WHERE p3.order_id = o.id AND p3.status = 'pending'
+                   )
+                   AND np.price < (
+                       SELECT MIN(p2.price) FROM proposals p2
+                       WHERE p2.order_id = o.id AND p2.id <> np.id AND p2.status = 'pending'
+                   )
+                 GROUP BY u.id, o.id, o.title, np.price`
+            );
+            let sent = 0;
+            for (const row of rows) {
+                const priceFmt = Number(row.new_price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                const ok = await this._send(row, 'client_better_proposal',
+                    'Chegou uma proposta mais barata! 💰',
+                    `Você recebeu uma nova proposta de R$ ${priceFmt} para "${row.title}" — a melhor oferta até agora. Confira!`,
+                    { order_id: String(row.order_id) }
+                );
+                if (ok) sent++;
+            }
+            console.log(`[DynNotif] client_better_proposal: ${sent}/${rows.length} enviados`);
+    }
+
+    async checkClientUnreadChatMessage() {
+        const [rows] = await pool.execute(
+                `SELECT u.id, u.name, u.email, u.fcm_token, u.device_platform,
+                        o.id AS order_id, o.title, COUNT(m.id) AS unread
+                 FROM messages m
+                 JOIN orders o ON o.id = m.order_id
+                 JOIN users u ON u.id = o.client_id
+                 WHERE m.receiver_id = CAST(u.id AS CHAR)
+                   AND m.read_at IS NULL
+                   AND m.created_at <= DATE_SUB(NOW(), INTERVAL 2 HOUR)
+                   AND m.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                   AND u.deleted_at IS NULL
+                   AND u.fcm_token IS NOT NULL AND u.fcm_token != ''
+                 GROUP BY u.id, o.id, o.title`
+            );
+            let sent = 0;
+            for (const row of rows) {
+                const count = row.unread;
+                const ok = await this._send(row, 'client_unread_chat_message',
+                    `Você tem ${count > 1 ? count + ' mensagens' : 'uma mensagem'} não lida 💬`,
+                    `O profissional do pedido "${row.title}" te enviou ${count > 1 ? 'mensagens' : 'uma mensagem'}. Responda para não perder o contato!`,
+                    { order_id: String(row.order_id), screen: 'chat' }
+                );
+                if (ok) sent++;
+            }
+            console.log(`[DynNotif] client_unread_chat_message: ${sent}/${rows.length} enviados`);
+    }
+
+    async checkClientBecomeAffiliate() {
+        const [rows] = await pool.execute(
+                `SELECT u.id, u.name, u.email, u.fcm_token, u.device_platform
+                 FROM users u
+                 WHERE u.profile_type = 'client'
+                   AND u.deleted_at IS NULL
+                   AND u.email NOT LIKE 'deleted_%@deleted.invalid'
+                   AND NOT EXISTS (SELECT 1 FROM affiliates a WHERE a.user_id = u.id)
+                   AND EXISTS (
+                       SELECT 1 FROM orders o
+                       WHERE o.client_id = u.id AND o.status = 'completed'
+                   )`
+            );
+            let sent = 0;
+            for (const row of rows) {
+                const ok = await this._send(row, 'client_become_affiliate',
+                    'Indique o CotaJá e ganhe dinheiro 💸',
+                    'Você já conhece o CotaJá! Indique para amigos pelo seu link e ganhe comissões a cada novo usuário. Saque via Pix.',
+                    { screen: 'affiliate' }
+                );
+                if (ok) sent++;
+            }
+            console.log(`[DynNotif] client_become_affiliate: ${sent}/${rows.length} enviados`);
+    }
+
+    async checkClientOnboardingStages() {
+        const stages = [
+            {
+                trigger: 'client_onboarding_d1', minDays: 1, maxDays: 2,
+                title: 'Bem-vindo ao CotaJá! 👋',
+                body: 'Aqui você descreve o que precisa e os profissionais competem pelo seu serviço. Que tal explorar as categorias disponíveis?',
+            },
+            {
+                trigger: 'client_onboarding_d3', minDays: 3, maxDays: 4,
+                title: 'Crie seu primeiro pedido em 2 minutos ⚡',
+                body: 'É grátis e sem compromisso. Descreva o serviço e receba propostas de profissionais qualificados perto de você.',
+            },
+            {
+                trigger: 'client_onboarding_d7', minDays: 7, maxDays: 8,
+                title: 'Contrate com segurança no CotaJá ✅',
+                body: 'Veja avaliações reais, compare propostas e converse direto com o profissional pelo app. Tudo num só lugar!',
+            },
+        ];
+        for (const stage of stages) {
+            const [rows] = await pool.execute(
+                `SELECT id, name, email, fcm_token, device_platform
+                 FROM users
+                 WHERE profile_type = 'client'
+                   AND deleted_at IS NULL
+                   AND fcm_token IS NOT NULL AND fcm_token != ''
+                   AND created_at <= DATE_SUB(NOW(), INTERVAL ? DAY)
+                   AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`,
+                [stage.minDays, stage.maxDays]
+            );
+            let sent = 0;
+            for (const row of rows) {
+                const ok = await this._send(row, stage.trigger, stage.title, stage.body, { screen: 'new_order' });
+                if (ok) sent++;
+            }
+            console.log(`[DynNotif] ${stage.trigger}: ${sent}/${rows.length} enviados`);
+        }
+    }
+
     async runAll() {
         console.log('[DynNotif] 🔁 Iniciando ciclo de notificações dinâmicas...');
         const start = Date.now();
@@ -640,6 +866,12 @@ class DynamicNotificationService {
             this.checkProviderUnusedAdCredits(),
             this.checkProviderProfileIncomplete(),
             this.checkWebUserWelcomeDownloadApp(),
+            this.checkClientOrderCancelledRecovery(),
+            this.checkClientSeasonalReactivation(),
+            this.checkClientBetterProposal(),
+            this.checkClientUnreadChatMessage(),
+            this.checkClientBecomeAffiliate(),
+            this.checkClientOnboardingStages(),
         ]);
 
         results.forEach((r, i) => {

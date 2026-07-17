@@ -1,6 +1,19 @@
 const { pool } = require('../config/database');
 class ProviderRating{
-static async ensureTable(){
+// A criação da tabela roda uma única vez por processo. A promise é cacheada, então
+// chamadas repetidas (inclusive de dentro de requisições) retornam sem tocar o banco.
+static _ensurePromise=null;
+static ensureTable(){
+if(!ProviderRating._ensurePromise){
+ProviderRating._ensurePromise=ProviderRating._createTable().catch(err=>{
+// Se falhar, permite nova tentativa numa próxima chamada.
+ProviderRating._ensurePromise=null;
+throw err;
+});
+}
+return ProviderRating._ensurePromise;
+}
+static async _createTable(){
 const connection=await pool.getConnection();
 try{
 await connection.execute(`CREATE TABLE IF NOT EXISTS provider_ratings(id INT AUTO_INCREMENT PRIMARY KEY,provider_id VARCHAR(36) NOT NULL,client_id VARCHAR(36) NOT NULL,rating INT NOT NULL,comment TEXT NULL,attachments LONGTEXT NULL,created_at DATETIME DEFAULT CURRENT_TIMESTAMP,updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,INDEX idx_provider_id(provider_id),INDEX idx_client_id(client_id))`);

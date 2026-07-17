@@ -283,9 +283,11 @@ class User {
     }
 
     static async searchProviders({ category = null, city = null, limit = 20 } = {}) {
+        // ensureTable adquire e libera a sua própria conexão do pool; chamamos ANTES
+        // de segurar a nossa para não manter duas conexões ao mesmo tempo (evita deadlock do pool).
+        await ProviderRating.ensureTable();
         const connection = await pool.getConnection();
         try {
-            await ProviderRating.ensureTable();
             let query = `
                 SELECT u.id provider_id,u.uuid,u.name,u.address,u.zip_code,u.service_categories,
                        u.avatar_base64,COALESCE(pr.avg_rating,0) rate,
@@ -336,9 +338,10 @@ class User {
     }
 
     static async getProviderPublicByUuid(uuid){
+        // ensureTable usa sua própria conexão; chamamos antes de segurar a nossa (evita deadlock do pool).
+        await ProviderRating.ensureTable();
         const connection=await pool.getConnection();
         try{
-            await ProviderRating.ensureTable();
             const [rows]=await connection.execute(`
                 SELECT u.id provider_id,u.uuid,u.name,u.address,u.zip_code,u.service_categories,u.avatar_base64,
                        COALESCE(pr.avg_rating,0) rate,COALESCE(pr.ratings_count,0) ratings_count,

@@ -1,7 +1,19 @@
 const { pool } = require('../config/database');
 
 class ProfileView {
-  static async ensureTable() {
+  // A criação da tabela roda uma única vez por processo (promise cacheada); chamadas
+  // repetidas retornam sem abrir conexão no pool.
+  static _ensurePromise = null;
+  static ensureTable() {
+    if (!ProfileView._ensurePromise) {
+      ProfileView._ensurePromise = ProfileView._createTable().catch(err => {
+        ProfileView._ensurePromise = null;
+        throw err;
+      });
+    }
+    return ProfileView._ensurePromise;
+  }
+  static async _createTable() {
     const connection = await pool.getConnection();
     try {
       await connection.execute(`

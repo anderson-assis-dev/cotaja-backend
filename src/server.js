@@ -6,6 +6,8 @@ const scheduleReminderService = require('./services/ScheduleReminderService');
 const AdDispatchService = require('./services/AdDispatchService');
 const criminalCheckCron = require('./services/CriminalCheckCron');
 const reEngagementCron = require('./services/ReEngagementCron');
+const ProviderRating = require('./models/ProviderRating');
+const ProfileView = require('./models/ProfileView');
 
 const PORT = process.env.APP_PORT || 3000;
 
@@ -47,6 +49,13 @@ server.listen(PORT, () => {
     console.log(`🌐 URL: http://localhost:${PORT}`);
     console.log(`📋 API Health: http://localhost:${PORT}/api/health`);
     console.log(`🔌 WebSocket ativo em /tracking`);
+
+    // Garante as tabelas auto-criadas uma única vez no startup (antes eram criadas a
+    // cada requisição, o que desperdiçava conexões do pool). ensureTable é memoizado,
+    // então qualquer chamada posterior dentro de requisições retorna sem tocar o banco.
+    Promise.all([ProviderRating.ensureTable(), ProfileView.ensureTable()])
+        .then(() => console.log('✅ Tabelas auto-criadas verificadas (provider_ratings, profile_views)'))
+        .catch(err => console.error('❌ Erro ao garantir tabelas no startup:', err.message));
 
     scheduleReminderService.start();
     adDispatcher.startCronJob(60000);

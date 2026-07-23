@@ -326,7 +326,7 @@ async function sendActivationCodeEmail(user, code) {
 class AuthController {
     async register(req, res) {
         try {
-            const { name, email, phone, password, profile_type, fcm_token, device_platform, mother_name, birth_date, cpf, address, zip_code, latitude, longitude, service_categories } = req.body;
+            const { name, email, phone, password, profile_type, fcm_token, device_platform, mother_name, birth_date, cpf, address, zip_code, latitude, longitude, service_categories, liveness_score, liveness_image_base64 } = req.body;
 
             console.log('📝 [BACKEND/REGISTER] Nome:', name);
             console.log('📧 [BACKEND/REGISTER] Email:', email);
@@ -392,6 +392,22 @@ class AuthController {
             }
 
             const user = await User.create(userData);
+
+            // Liveness (anti-robô): quando o app envia o resultado aprovado no
+            // cadastro, grava o score e a imagem. Campos opcionais — cadastros
+            // vindos de versões antigas do app simplesmente não os enviam.
+            if (liveness_score != null || liveness_image_base64) {
+                try {
+                    await user.update({
+                        liveness_verified: 1,
+                        liveness_score: liveness_score != null ? liveness_score : null,
+                        liveness_image_base64: liveness_image_base64 || null,
+                        liveness_verified_at: new Date(),
+                    });
+                } catch (livenessError) {
+                    console.error('❌ Erro ao salvar liveness no registro (não bloqueante):', livenessError.message);
+                }
+            }
 
             console.log('✅ Usuário criado com profile_type:', user.profile_type);
             if (fcm_token) {
@@ -845,6 +861,36 @@ class AuthController {
             });
         }
     }
+
+    // Liveness para usuários já cadastrados que ainda não fizeram a validação
+    // anti-robô. Salva o score e (opcionalmente) uma imagem base64.
+    async submitLiveness(req, res) {
+        try {
+            const { liveness_score, liveness_image_base64 } = req.body;
+
+            await req.user.update({
+                liveness_verified: 1,
+                liveness_score: liveness_score != null ? liveness_score : null,
+                liveness_image_base64: liveness_image_base64 || null,
+                liveness_verified_at: new Date(),
+            });
+
+            return res.json({
+                success: true,
+                message: 'Verificação de liveness concluída com sucesso',
+                data: {
+                    user: req.user.toJSON()
+                }
+            });
+        } catch (error) {
+            console.error('❌ Erro ao salvar liveness:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Erro interno do servidor'
+            });
+        }
+    }
+
     async requestOtp(req, res) {
         try {
             const user = req.user;

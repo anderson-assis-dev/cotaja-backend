@@ -38,6 +38,10 @@ class User {
         this.criminal_check_code = data.criminal_check_code || null;
         this.criminal_check_date = data.criminal_check_date || null;
         this.security_code = data.security_code || null;
+        this.liveness_verified = data.liveness_verified !== undefined ? data.liveness_verified : 0;
+        this.liveness_score = data.liveness_score !== undefined ? data.liveness_score : null;
+        this.liveness_verified_at = data.liveness_verified_at || null;
+        this.liveness_image_base64 = data.liveness_image_base64 || null;
         this.fcm_token = data.fcm_token || null;
         this.device_platform = data.device_platform || null;
         this.email_unsubscribed = data.email_unsubscribed !== undefined ? data.email_unsubscribed : 0;
@@ -531,6 +535,8 @@ class User {
         const obj = this.toObject();
         delete obj.remember_token;
         delete obj.activation_token;
+        // Não expor a imagem do liveness nas respostas normais (payload enxuto).
+        delete obj.liveness_image_base64;
         return obj;
     }
 }

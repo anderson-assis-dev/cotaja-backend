@@ -317,8 +317,8 @@ class User {
             const params = [];
 
             if (category) {
-                query += ' AND JSON_CONTAINS(LOWER(u.service_categories), ?)';
-                params.push(JSON.stringify(category.toLowerCase()));
+                query += ' AND LOWER(u.service_categories) LIKE ?';
+                params.push(`%${category.toLowerCase()}%`);
             }
 
             if (city) {

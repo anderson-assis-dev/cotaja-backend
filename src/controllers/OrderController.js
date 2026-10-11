@@ -331,6 +331,16 @@ class OrderController {
             }
 
             const updatedOrder = await order.update(updateData);
+
+            // Ao concluir, o pedido ganha o codigo publico do comprovante.
+            // Nao bloqueia a conclusao se falhar: o comprovante pode ser
+            // emitido depois, na primeira vez que alguem pedir.
+            if (updateData.status === Order.STATUS_COMPLETED) {
+                const ReceiptService = require('../services/ReceiptService');
+                const codigo = await ReceiptService.emitir(updatedOrder.id);
+                if (codigo) updatedOrder.receipt_code = codigo;
+            }
+
             await updatedOrder.loadRelations();
 
             return res.json({

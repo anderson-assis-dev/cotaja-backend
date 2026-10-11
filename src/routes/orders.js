@@ -50,6 +50,7 @@ router.get('/recent', orderController.recent);
 router.get('/stats', orderController.stats);
 router.get('/my-providers', orderController.myProviders);
 router.get('/:id', orderController.show);
+router.get('/:id/receipt', require('../controllers/ReceiptController').doPedido);
 router.put('/:id', (req, res, next) => {
     console.log('📥 PUT /orders/:id recebido');
     console.log('Content-Type:', req.headers['content-type']);

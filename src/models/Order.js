@@ -30,6 +30,8 @@ class Order {
         this.schedule_confirmed_by_provider = data.schedule_confirmed_by_provider || 0;
         this.arrival_confirmed_at = data.arrival_confirmed_at || null;
         this.arrival_confirmed_distance_km = data.arrival_confirmed_distance_km || null;
+        this.receipt_code = data.receipt_code || null;
+        this.receipt_issued_at = data.receipt_issued_at || null;
         this.schedule_reminder_1d_sent = data.schedule_reminder_1d_sent || 0;
         this.schedule_reminder_1h_sent = data.schedule_reminder_1h_sent || 0;
         this.cancel_reason = data.cancel_reason || null;
@@ -123,7 +125,10 @@ class Order {
         const placeholders = orderIds.map(() => '?').join(',');
 
         const [proposalRows] = await connection.execute(
-            `SELECT p.*, u.name as provider_name, u.email as provider_email, u.avatar_base64 as provider_avatar_base64
+            `SELECT p.*, u.name as provider_name, u.email as provider_email,
+                    u.avatar_base64 as provider_avatar_base64,
+                    u.is_verified as provider_is_verified,
+                    u.is_premium as provider_is_premium
              FROM proposals p
              LEFT JOIN users u ON p.provider_id = u.id
              WHERE p.order_id IN (${placeholders})`,
@@ -426,14 +431,14 @@ class Order {
 
             if (this.provider_id) {
                 const [providerRows] = await connection.execute(
-                    'SELECT id, name, email, phone, profile_type, avatar_base64 FROM users WHERE id = ?',
+                    'SELECT id, name, email, phone, profile_type, avatar_base64, is_verified, is_premium FROM users WHERE id = ?',
                     [this.provider_id]
                 );
                 this.provider = providerRows[0] || null;
             }
 
             const [proposalRows] = await connection.execute(
-                'SELECT p.*, u.name as provider_name, u.email as provider_email, u.avatar_base64 as provider_avatar_base64 FROM proposals p LEFT JOIN users u ON p.provider_id = u.id WHERE p.order_id = ?',
+                'SELECT p.*, u.name as provider_name, u.email as provider_email, u.avatar_base64 as provider_avatar_base64, u.is_verified as provider_is_verified, u.is_premium as provider_is_premium FROM proposals p LEFT JOIN users u ON p.provider_id = u.id WHERE p.order_id = ?',
                 [this.id]
             );
             this.proposals = proposalRows;

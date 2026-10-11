@@ -15,9 +15,11 @@ const subscriptionRoutes = require('./subscriptions');
 const affiliateRoutes = require('./affiliates');
 const trackingRoutes = require('./tracking');
 const checkoutRoutes = require('./checkout');
+const receiptRoutes = require('./receipts');
 
 router.use('/auth', authRoutes);
 router.use('/orders', orderRoutes);
+router.use('/receipts', receiptRoutes);
 router.use('/proposals', proposalRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/services', serviceRoutes);

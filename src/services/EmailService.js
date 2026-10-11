@@ -569,6 +569,150 @@ class EmailService {
             recipientEmail,
         });
     }
+
+    // ------------------------------------------------------------------
+    // Nova demanda e comprovante
+    // ------------------------------------------------------------------
+
+    /** Avisa os prestadores da categoria que uma demanda foi publicada. */
+    async sendNewDemandToProviders(order, providers, ctaUrl = 'https://cotaja.io') {
+        const envios = providers.map((provider) => this.transporter.sendMail({
+            from: this.fromAddress(),
+            to: provider.email,
+            subject: `Nova demanda de ${order.category}: "${order.title}"`,
+            html: this.getNewDemandTemplate(order, provider, ctaUrl),
+            attachments: this.getDefaultAttachments(),
+        }).then(() => true).catch((e) => {
+            console.error(`Erro ao avisar ${provider.email} da demanda ${order.id}:`, e.message);
+            return false;
+        }));
+
+        const r = await Promise.all(envios);
+        const ok = r.filter(Boolean).length;
+        console.log(`📧 Nova demanda ${order.id}: ${ok}/${providers.length} e-mails enviados`);
+        return { successful: ok, failed: providers.length - ok, total: providers.length };
+    }
+
+    getNewDemandTemplate(order, provider, ctaUrl = 'https://cotaja.io') {
+        const orcamento = order.budget != null
+            ? `R$ ${Number.parseFloat(order.budget).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            : null;
+        const local = [order.neighborhood, order.city, order.state].filter(Boolean).join(', ');
+
+        let linhas = this.detailRow('Serviço', order.title)
+            + this.detailRow('Categoria', order.category);
+        if (local) linhas += this.detailRow('Local', local);
+        if (order.deadline) linhas += this.detailRow('Prazo desejado', `${order.deadline} dias`);
+        if (orcamento) {
+            linhas += this.detailRow('Orçamento de referência', orcamento,
+                { valueColor: '#10b981', valueSize: '18px', bold: true });
+        }
+        if (order.description) {
+            linhas += `<tr><td colspan="2" style="padding:10px 0 0;"><strong style="color:#6b7280;font-size:14px;">Descrição:</strong><p style="margin:5px 0 0;color:#1f2937;font-size:14px;line-height:1.5;">${order.description}</p></td></tr>`;
+        }
+
+        const bodyHtml = `
+                    <p style="margin:0 0 14px 0;color:#4b5563;font-size:15px;line-height:1.6;">Olá, <strong>${provider.name}</strong>,</p>
+                    <p style="margin:0 0 18px 0;color:#4b5563;font-size:15px;line-height:1.6;">Acabou de entrar uma demanda na sua categoria. Quem responde primeiro costuma ter mais chance de fechar.</p>
+                    ${this.detailCard('Detalhes da demanda', linhas, { bg: '#f0fdf4', border: '#10b981' })}
+                    <p style="margin:0 0 18px 0;color:#4b5563;font-size:15px;line-height:1.6;">Envie sua proposta com preço, prazo e o que está incluso. O cliente compara as propostas lado a lado.</p>`;
+
+        return this.renderBaseEmail({
+            heading: 'Nova demanda disponível',
+            preheader: `${order.category}: ${order.title}`,
+            accent: '#10b981',
+            bodyHtml,
+            ctaText: 'Enviar proposta',
+            ctaUrl,
+            recipientEmail: provider.email,
+        });
+    }
+
+    /**
+     * Manda o comprovante do serviço concluído para as duas partes, com o PDF
+     * anexado. Cada lado recebe um texto próprio: para o cliente é prova do que
+     * foi contratado, para o profissional serve de comprovação de renda.
+     */
+    async sendServiceReceipt(comprovante, client, provider, pdfBuffer, ctaUrl) {
+        const anexoPdf = pdfBuffer ? [{
+            filename: `comprovante-${comprovante.codigo}.pdf`,
+            content: pdfBuffer,
+            contentType: 'application/pdf',
+        }] : [];
+
+        const destinos = [
+            { usuario: client, papel: 'cliente' },
+            { usuario: provider, papel: 'prestador' },
+        ].filter((d) => d.usuario && d.usuario.email);
+
+        const envios = destinos.map(({ usuario, papel }) => this.transporter.sendMail({
+            from: this.fromAddress(),
+            to: usuario.email,
+            subject: `Comprovante do serviço "${comprovante.servico.titulo}" (${comprovante.codigo})`,
+            html: this.getServiceReceiptTemplate(comprovante, usuario, papel, ctaUrl),
+            attachments: [...this.getDefaultAttachments(), ...anexoPdf],
+        }).then(() => true).catch((e) => {
+            console.error(`Erro ao enviar comprovante para ${usuario.email}:`, e.message);
+            return false;
+        }));
+
+        const r = await Promise.all(envios);
+        const ok = r.filter(Boolean).length;
+        console.log(`📧 Comprovante ${comprovante.codigo}: ${ok}/${destinos.length} enviados`
+            + `${pdfBuffer ? ' com PDF' : ' SEM o PDF'}`);
+        return { successful: ok, failed: destinos.length - ok, total: destinos.length };
+    }
+
+    getServiceReceiptTemplate(c, destinatario, papel, ctaUrl) {
+        const ehCliente = papel === 'cliente';
+        const valor = c.valor != null
+            ? `R$ ${Number(c.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            : null;
+        const quando = (v) => (v ? new Date(v).toLocaleString('pt-BR', {
+            day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit', timeZone: 'America/Bahia',
+        }) : null);
+
+        let linhas = this.detailRow('Código', c.codigo, { bold: true })
+            + this.detailRow('Serviço', c.servico.titulo)
+            + this.detailRow(ehCliente ? 'Profissional' : 'Contratante',
+                ehCliente ? c.profissional.nome : c.cliente.nome);
+        if (c.local) linhas += this.detailRow('Local', c.local);
+        if (valor) {
+            linhas += this.detailRow('Valor', valor,
+                { valueColor: '#10b981', valueSize: '18px', bold: true });
+        }
+        if (c.datas?.concluido_em) linhas += this.detailRow('Concluído em', quando(c.datas.concluido_em));
+
+        const chegada = c.chegada_validada_por_gps ? `
+                    <p style="margin:0 0 18px 0;padding:14px 16px;background:#eef3fd;border-left:4px solid #123FAE;border-radius:6px;color:#071C4D;font-size:14px;line-height:1.6;">
+                        <strong>Chegada confirmada no local</strong> em ${quando(c.datas.chegada_confirmada_em)}${
+                            c.distancia_na_confirmacao_km != null
+                                ? `, a ${String(c.distancia_na_confirmacao_km).replace('.', ',')} km do endereço`
+                                : ''}, validada pelo código pessoal do profissional e por proximidade de GPS.
+                    </p>` : '';
+
+        const abertura = ehCliente
+            ? 'O serviço foi concluído. Segue em anexo o comprovante, que vale como registro do que foi contratado, de quem executou e de quando aconteceu.'
+            : 'O serviço foi concluído. Segue em anexo o comprovante, que você pode usar como comprovação de renda e como registro do trabalho realizado.';
+
+        const bodyHtml = `
+                    <p style="margin:0 0 14px 0;color:#4b5563;font-size:15px;line-height:1.6;">Olá, <strong>${destinatario.name}</strong>,</p>
+                    <p style="margin:0 0 18px 0;color:#4b5563;font-size:15px;line-height:1.6;">${abertura}</p>
+                    ${chegada}
+                    ${this.detailCard('Comprovante de serviço', linhas, { bg: '#f9fafb', border: '#123FAE' })}
+                    <p style="margin:0 0 18px 0;color:#4b5563;font-size:15px;line-height:1.6;">Qualquer pessoa pode conferir a autenticidade deste comprovante pelo código <strong>${c.codigo}</strong>, sem precisar de conta.</p>`;
+
+        return this.renderBaseEmail({
+            heading: 'Serviço concluído',
+            preheader: `Comprovante ${c.codigo} em anexo`,
+            accent: '#123FAE',
+            bodyHtml,
+            ctaText: 'Conferir comprovante',
+            ctaUrl,
+            recipientEmail: destinatario.email,
+        });
+    }
 }
 
 module.exports = new EmailService();

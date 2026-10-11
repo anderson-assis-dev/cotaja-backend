@@ -338,7 +338,13 @@ class OrderController {
             if (updateData.status === Order.STATUS_COMPLETED) {
                 const ReceiptService = require('../services/ReceiptService');
                 const codigo = await ReceiptService.emitir(updatedOrder.id);
-                if (codigo) updatedOrder.receipt_code = codigo;
+                if (codigo) {
+                    updatedOrder.receipt_code = codigo;
+                    // o e-mail com o PDF sai em segundo plano: gerar o
+                    // documento leva alguns segundos e nao deve atrasar a
+                    // resposta de quem acabou de concluir o servico
+                    enviarComprovantePorEmail(updatedOrder.id).catch(() => {});
+                }
             }
 
             await updatedOrder.loadRelations();
@@ -692,61 +698,21 @@ class OrderController {
     async sendNewOrderEmails(order) {
         try {
             const providers = await User.findProvidersByCategory(order.category);
+            if (!providers || providers.length === 0) return;
 
-            const mailPort = parseInt(process.env.MAIL_PORT) || 465;
-            const transporter = nodemailer.createTransport({
-                host: process.env.MAIL_HOST || 'smtp.gmail.com',
-                port: mailPort,
-                secure: mailPort === 465,
-                auth: {
-                    user: process.env.MAIL_USERNAME,
-                    pass: process.env.MAIL_PASSWORD
-                },
-                tls: {
-                    rejectUnauthorized: false
-                },
-                connectionTimeout: 10000,
-                greetingTimeout: 10000,
-                socketTimeout: 15000
-            });
-
-            for (const provider of providers) {
-                try {
-                    await transporter.sendMail({
-                        from: `"${process.env.MAIL_FROM_NAME}" <${process.env.MAIL_FROM_ADDRESS}>`,
-                        to: provider.email,
-                        subject: 'Nova demanda disponível - Cotaja',
-                        html: `
-                            <h1>Nova demanda disponível!</h1>
-                            <p>Olá, ${provider.name}!</p>
-                            <p>Uma nova demanda na categoria <strong>${order.category}</strong> foi criada:</p>
-                            <h3>${order.title}</h3>
-                            <p><strong>Orçamento:</strong> R$ ${parseFloat(order.budget).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                            <p><strong>Descrição:</strong> ${order.description}</p>
-                            <p>Acesse nossa plataforma para mais detalhes e enviar sua proposta!</p>
-                        `
-                    });
-
-                    console.log('E-mail de nova demanda enviado', {
-                        order_id: order.id,
-                        provider_id: provider.id,
-                        provider_email: provider.email
-                    });
-                } catch (error) {
-                    console.error('Erro ao enviar e-mail de nova demanda', {
-                        order_id: order.id,
-                        provider_id: provider.id,
-                        error: error.message
-                    });
-                }
-            }
+            // Usa o EmailService em vez de montar transporter e HTML aqui:
+            // o aviso passa a sair no mesmo template dos demais e-mails, com
+            // logo, rodapé e link de cancelamento de inscrição.
+            const EmailService = require('../services/EmailService');
+            await EmailService.sendNewDemandToProviders(order, providers);
         } catch (error) {
             console.error('Erro geral ao enviar e-mails de nova demanda', {
                 order_id: order.id,
-                error: error.message
+                error: error.message,
             });
         }
     }
+
 
     async cancel(req, res) {
         try {
@@ -1102,6 +1068,39 @@ class OrderController {
             console.error('OrderController.myProviders error:', error);
             return res.status(500).json({ success: false, message: 'Erro ao buscar prestadores.' });
         }
+    }
+}
+
+/**
+ * Manda o comprovante com o PDF anexado para o cliente e o prestador.
+ *
+ * Fora da classe de proposito: as rotas passam os metodos do controller sem
+ * bind, entao `this` nao existe dentro deles.
+ */
+async function enviarComprovantePorEmail(orderId) {
+    try {
+        const ReceiptService = require('../services/ReceiptService');
+        const { gerarPdf, SITE } = require('../services/ReceiptPdfService');
+        const EmailService = require('../services/EmailService');
+
+        const row = await ReceiptService.porPedido(orderId);
+        if (!row || !row.receipt_code) return;
+
+        const comprovante = ReceiptService.montar(row, { publico: false });
+        const pdf = await gerarPdf(comprovante);
+
+        const client = await User.findById(row.client_id);
+        const provider = row.provider_id ? await User.findById(row.provider_id) : null;
+
+        await EmailService.sendServiceReceipt(
+            comprovante, client, provider, pdf,
+            `${SITE}/comprovante/${comprovante.codigo}`
+        );
+    } catch (error) {
+        console.error('Erro ao enviar o comprovante por e-mail', {
+            order_id: orderId,
+            error: error.message,
+        });
     }
 }
 

@@ -143,3 +143,5 @@ certificates/
 .Trashes
 ehthumbs.db
 Thumbs.db
+# runners antigos traziam credenciais de producao no codigo
+database/migrations/run_*.js

@@ -28,6 +28,8 @@ class Order {
         this.scheduled_date = data.scheduled_date || null;
         this.schedule_confirmed_by_client = data.schedule_confirmed_by_client || 0;
         this.schedule_confirmed_by_provider = data.schedule_confirmed_by_provider || 0;
+        this.arrival_confirmed_at = data.arrival_confirmed_at || null;
+        this.arrival_confirmed_distance_km = data.arrival_confirmed_distance_km || null;
         this.schedule_reminder_1d_sent = data.schedule_reminder_1d_sent || 0;
         this.schedule_reminder_1h_sent = data.schedule_reminder_1h_sent || 0;
         this.cancel_reason = data.cancel_reason || null;

@@ -459,6 +459,15 @@ class AuthController {
             });
         } catch (error) {
             console.error('Erro ao registrar usuário:', error);
+            if (error.code === 'ER_DUP_ENTRY') {
+                const dupCpf = /cpf/i.test(error.message || '');
+                return res.status(422).json({
+                    success: false,
+                    message: dupCpf
+                        ? 'Este CPF já está cadastrado. Entre na conta existente ou deixe o CPF em branco.'
+                        : 'Erro, não foi possível cadastrar a sua conta nesse momento. Tente utilizar um email diferente.',
+                });
+            }
             return res.status(500).json({
                 success: false,
                 message: 'Erro interno do servidor'
@@ -1094,6 +1103,22 @@ class AuthController {
                 return res.status(400).json({ success: false, message: 'Este pedido não possui um prestador atribuído.' });
             }
 
+            // Chegada já confirmada continua valendo. Sem isto, recarregar a
+            // página depois que o prestador encerra o trajeto faria a tela
+            // voltar a pedir o código de um serviço que já foi validado.
+            if (order.arrival_confirmed_at) {
+                const jaConfirmado = await User.findById(order.provider_id);
+                return res.json({
+                    success: true,
+                    message: 'Chegada já confirmada anteriormente.',
+                    data: {
+                        provider_name: jaConfirmado ? jaConfirmado.name : null,
+                        verified: true,
+                        arrival_confirmed_at: order.arrival_confirmed_at,
+                    },
+                });
+            }
+
             const { getProviderLocation } = require('../services/TrackingSocket');
             const providerPos = getProviderLocation(order_id);
             if (!providerPos) {
@@ -1132,10 +1157,30 @@ class AuthController {
                 return res.status(400).json({ success: false, message: 'Código de segurança incorreto. Verifique com o prestador.' });
             }
 
+            // Registro da confirmação. É o que sustenta a etapa "Chegada
+            // confirmada" na linha do tempo e serve de prova de que a
+            // identidade foi validada no local, dentro do raio de 3 km.
+            const confirmadoEm = new Date();
+            try {
+                await order.update({
+                    arrival_confirmed_at: confirmadoEm,
+                    arrival_confirmed_distance_km: Number(distKm.toFixed(2)),
+                });
+            } catch (persistError) {
+                // Se a migration 030 ainda não rodou, a validação continua
+                // válida para o cliente em vez de falhar o serviço inteiro.
+                console.error('Não foi possível gravar a confirmação de chegada:', persistError.message);
+            }
+
             return res.json({
                 success: true,
                 message: 'Identidade do prestador confirmada com sucesso!',
-                data: { provider_name: provider.name, verified: true }
+                data: {
+                    provider_name: provider.name,
+                    verified: true,
+                    arrival_confirmed_at: confirmadoEm,
+                    distance_km: Number(distKm.toFixed(2)),
+                }
             });
         } catch (error) {
             console.error('Erro ao verificar código de segurança:', error);

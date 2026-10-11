@@ -294,7 +294,8 @@ class User {
         try {
             let query = `
                 SELECT u.id provider_id,u.uuid,u.name,u.address,u.zip_code,u.service_categories,
-                       u.avatar_base64,COALESCE(pr.avg_rating,0) rate,
+                       u.avatar_base64,u.is_verified,u.is_premium,
+                       COALESCE(pr.avg_rating,0) rate,
                        COALESCE(os.completed_services,0) completed_services,
                        COALESCE(os.active_services,0) active_services
                 FROM users u
@@ -426,6 +427,12 @@ class User {
     }
 
     async update(updateData) {
+        // O selo de verificado e derivado das checagens, nunca definido a mao.
+        // Centralizar aqui evita que um novo ponto de aprovacao esqueca de
+        // atualizar o selo, como ja aconteceu com os seis pontos existentes.
+        const tocaVerificacao = ['criminal_check', 'liveness_verified', 'profile_type']
+            .some((k) => updateData[k] !== undefined);
+
         const connection = await pool.getConnection();
         try {
             const fields = [];
@@ -458,10 +465,17 @@ class User {
                 }
             });
 
-            return this;
         } finally {
             connection.release();
         }
+
+        if (tocaVerificacao) {
+            const { refreshIsVerified } = require('../services/VerificationStatus');
+            const selo = await refreshIsVerified(this.id);
+            if (selo !== null) this.is_verified = selo;
+        }
+
+        return this;
     }
 
     async save() {

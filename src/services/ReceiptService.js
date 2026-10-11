@@ -57,7 +57,7 @@ const emitir = async (orderId) => {
 };
 
 const SELECT_BASE = `
-    SELECT o.id, o.title, o.description, o.category, o.budget,
+    SELECT o.id, o.title, o.description, o.category, o.brand, o.budget,
            o.address, o.street, o.number, o.complement, o.neighborhood,
            o.city, o.state, o.zip_code,
            o.status, o.created_at, o.scheduled_date,
@@ -92,6 +92,7 @@ const montar = (row, { publico = false } = {}) => {
 
     return {
         codigo: row.receipt_code,
+        marca: row.brand || 'cotaja',
         emitido_em: row.receipt_issued_at,
         servico: {
             titulo: row.title,

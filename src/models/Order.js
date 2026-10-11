@@ -7,6 +7,7 @@ class Order {
         this.title = data.title || null;
         this.description = data.description || null;
         this.category = data.category || null;
+        this.brand = data.brand || 'cotaja';
         this.budget = data.budget || null;
         this.deadline = data.deadline || null;
         this.address = data.address || null;
@@ -63,12 +64,13 @@ class Order {
         const connection = await pool.getConnection();
         try {
             const [result] = await connection.execute(
-                `INSERT INTO orders (title, description, category, budget, deadline, address, street, number, complement, neighborhood, city, state, zip_code, latitude, longitude, status, client_id, provider_id, accepted_proposal_id, auction_started_at, auction_ends_at, attachments, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+                `INSERT INTO orders (title, description, category, brand, budget, deadline, address, street, number, complement, neighborhood, city, state, zip_code, latitude, longitude, status, client_id, provider_id, accepted_proposal_id, auction_started_at, auction_ends_at, attachments, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
                 [
                     orderData.title,
                     orderData.description,
                     orderData.category,
+                    orderData.brand || 'cotaja',
                     orderData.budget,
                     orderData.deadline,
                     orderData.address,
@@ -494,6 +496,7 @@ class Order {
             title: this.title,
             description: this.description,
             category: this.category,
+            brand: this.brand,
             budget: this.budget,
             deadline: this.deadline,
             address: this.address,

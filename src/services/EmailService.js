@@ -633,7 +633,7 @@ class EmailService {
      * anexado. Cada lado recebe um texto próprio: para o cliente é prova do que
      * foi contratado, para o profissional serve de comprovação de renda.
      */
-    async sendServiceReceipt(comprovante, client, provider, pdfBuffer, ctaUrl) {
+    async sendServiceReceipt(comprovante, client, provider, pdfBuffer, ctaUrl, marca = null) {
         const anexoPdf = pdfBuffer ? [{
             filename: `comprovante-${comprovante.codigo}.pdf`,
             content: pdfBuffer,
@@ -649,7 +649,7 @@ class EmailService {
             from: this.fromAddress(),
             to: usuario.email,
             subject: `Comprovante do serviço "${comprovante.servico.titulo}" (${comprovante.codigo})`,
-            html: this.getServiceReceiptTemplate(comprovante, usuario, papel, ctaUrl),
+            html: this.getServiceReceiptTemplate(comprovante, usuario, papel, ctaUrl, marca),
             attachments: [...this.getDefaultAttachments(), ...anexoPdf],
         }).then(() => true).catch((e) => {
             console.error(`Erro ao enviar comprovante para ${usuario.email}:`, e.message);
@@ -663,7 +663,8 @@ class EmailService {
         return { successful: ok, failed: destinos.length - ok, total: destinos.length };
     }
 
-    getServiceReceiptTemplate(c, destinatario, papel, ctaUrl) {
+    getServiceReceiptTemplate(c, destinatario, papel, ctaUrl, marca = null) {
+        const m = marca || require('../config/brands').obter(c.marca);
         const ehCliente = papel === 'cliente';
         const valor = c.valor != null
             ? `R$ ${Number(c.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -685,7 +686,7 @@ class EmailService {
         if (c.datas?.concluido_em) linhas += this.detailRow('Concluído em', quando(c.datas.concluido_em));
 
         const chegada = c.chegada_validada_por_gps ? `
-                    <p style="margin:0 0 18px 0;padding:14px 16px;background:#eef3fd;border-left:4px solid #123FAE;border-radius:6px;color:#071C4D;font-size:14px;line-height:1.6;">
+                    <p style="margin:0 0 18px 0;padding:14px 16px;background:#f3f4f6;border-left:4px solid ${m.cor};border-radius:6px;color:${m.corEscura};font-size:14px;line-height:1.6;">
                         <strong>Chegada confirmada no local</strong> em ${quando(c.datas.chegada_confirmada_em)}${
                             c.distancia_na_confirmacao_km != null
                                 ? `, a ${String(c.distancia_na_confirmacao_km).replace('.', ',')} km do endereço`
@@ -700,13 +701,13 @@ class EmailService {
                     <p style="margin:0 0 14px 0;color:#4b5563;font-size:15px;line-height:1.6;">Olá, <strong>${destinatario.name}</strong>,</p>
                     <p style="margin:0 0 18px 0;color:#4b5563;font-size:15px;line-height:1.6;">${abertura}</p>
                     ${chegada}
-                    ${this.detailCard('Comprovante de serviço', linhas, { bg: '#f9fafb', border: '#123FAE' })}
+                    ${this.detailCard('Comprovante de serviço', linhas, { bg: '#f9fafb', border: m.cor })}
                     <p style="margin:0 0 18px 0;color:#4b5563;font-size:15px;line-height:1.6;">Qualquer pessoa pode conferir a autenticidade deste comprovante pelo código <strong>${c.codigo}</strong>, sem precisar de conta.</p>`;
 
         return this.renderBaseEmail({
             heading: 'Serviço concluído',
             preheader: `Comprovante ${c.codigo} em anexo`,
-            accent: '#123FAE',
+            accent: m.cor,
             bodyHtml,
             ctaText: 'Conferir comprovante',
             ctaUrl,

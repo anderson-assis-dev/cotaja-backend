@@ -1,10 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const BRAND = process.env.RECEIPT_BRAND_NAME || 'Contrataê Bahia';
-const SITE = (process.env.RECEIPT_SITE_URL || 'https://contrataebahia.com.br').replace(/\/$/, '');
-const AZUL = '#123FAE';
-const AZUL_ESCURO = '#071C4D';
+const brands = require('../config/brands');
 
 const escapar = (v) => String(v == null ? '' : v)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -23,24 +20,27 @@ const moeda = (v) => (v == null ? null : Number(v).toLocaleString('pt-BR', {
     style: 'currency', currency: 'BRL',
 }));
 
-// O backend atende mais de uma marca, entao o logo do comprovante acompanha
-// a marca configurada em vez de usar o logo fixo dos e-mails.
-const LOGO = process.env.RECEIPT_LOGO
-    || path.join(__dirname, '../../assets/images/contrataebahia-logo.png');
-
-let logoCache;
-const logoDataUri = () => {
-    if (logoCache !== undefined) return logoCache;
+// O logo acompanha a marca de origem do pedido, nao uma constante global.
+const logoCache = new Map();
+const logoDataUri = (marca) => {
+    if (logoCache.has(marca.chave)) return logoCache.get(marca.chave);
+    let uri = null;
     try {
-        logoCache = `data:image/png;base64,${fs.readFileSync(LOGO).toString('base64')}`;
+        uri = `data:image/png;base64,${fs.readFileSync(marca.logo).toString('base64')}`;
     } catch {
-        logoCache = null;
+        uri = null;
     }
-    return logoCache;
+    logoCache.set(marca.chave, uri);
+    return uri;
 };
 
 /** HTML do comprovante, autocontido: sem fonte externa nem imagem remota. */
 const montarHtml = (r) => {
+    const marca = brands.obter(r.marca);
+    const AZUL = marca.cor;
+    const AZUL_ESCURO = marca.corEscura;
+    const BRAND = marca.nome;
+    const SITE = marca.site.replace(/\/$/, '');
     const linha = (rotulo, valor) => (valor
         ? `<tr><th>${escapar(rotulo)}</th><td>${valor}</td></tr>`
         : '');
@@ -59,7 +59,7 @@ const montarHtml = (r) => {
             Validada por código pessoal do profissional e por proximidade de GPS.
         </div>` : '';
 
-    const logo = logoDataUri();
+    const logo = logoDataUri(marca);
 
     return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
 <style>
@@ -179,4 +179,4 @@ const gerarPdf = async (comprovante) => {
     }
 };
 
-module.exports = { gerarPdf, montarHtml, BRAND, SITE };
+module.exports = { gerarPdf, montarHtml };

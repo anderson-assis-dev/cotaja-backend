@@ -156,6 +156,8 @@ class OrderController {
                 latitude: finalLat,
                 longitude: finalLng,
                 client_id: user.id,
+                // a marca vem do Origin da requisição; app sem Origin cai no padrão
+                brand: require('../config/brands').daRequisicao(req).chave,
                 attachments: attachments ? JSON.stringify(attachments) : null
             });
 
@@ -1080,13 +1082,15 @@ class OrderController {
 async function enviarComprovantePorEmail(orderId) {
     try {
         const ReceiptService = require('../services/ReceiptService');
-        const { gerarPdf, SITE } = require('../services/ReceiptPdfService');
+        const { gerarPdf } = require('../services/ReceiptPdfService');
         const EmailService = require('../services/EmailService');
+        const brands = require('../config/brands');
 
         const row = await ReceiptService.porPedido(orderId);
         if (!row || !row.receipt_code) return;
 
         const comprovante = ReceiptService.montar(row, { publico: false });
+        const marca = brands.obter(comprovante.marca);
         const pdf = await gerarPdf(comprovante);
 
         const client = await User.findById(row.client_id);
@@ -1094,7 +1098,8 @@ async function enviarComprovantePorEmail(orderId) {
 
         await EmailService.sendServiceReceipt(
             comprovante, client, provider, pdf,
-            `${SITE}/comprovante/${comprovante.codigo}`
+            `${marca.site.replace(/\/$/, '')}/comprovante/${comprovante.codigo}`,
+            marca
         );
     } catch (error) {
         console.error('Erro ao enviar o comprovante por e-mail', {
